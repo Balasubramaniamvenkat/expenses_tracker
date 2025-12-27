@@ -33,16 +33,18 @@ python generate_hdfc_data.py --start-date 2024-01-01 --end-date 2024-12-31 --bal
 
 ## Transaction Categories
 
-The generator includes realistic transactions for:
-- 🛒 Groceries (BigBasket, DMart, Zepto, Blinkit)
-- 🍔 Food Delivery (Swiggy, Zomato)
-- ⚡ Utilities (BESCOM, BWSSB, Gas)
-- 📺 Subscriptions (Netflix, Spotify, Apple, YouTube)
-- 📱 Telecom (Airtel, Jio, ACT Fibernet)
-- 🛍️ Shopping (Amazon, Flipkart, Myntra)
-- ⛽ Fuel (HP, Indian Oil, BPCL)
-- 💊 Medical (Apollo, MedPlus)
-- 🚗 Transport (Ola, Uber, Metro)
-- 📈 Investments (Zerodha, Groww)
-- 🍽️ Restaurants (A2B, CCD, Starbucks)
-- 💸 Salary & NEFT Transfers
+The generator creates fictional transactions for:
+- 🛒 Groceries (Superbasket, Freshmart, Quickmart, Valuemart)
+- 🍔 Food Delivery (Quickbite, Foodrush, Tastybites)
+- ⚡ Utilities (City Electricity, Metro Water, Gas Supply)
+- 📺 Subscriptions (Streamflix, Primeview, Musicstream, Viewplus)
+- 📱 Telecom (Telemax, Connectplus, Speednet)
+- 🛍️ Shopping (Shopmart, Megamart, Fashionhub)
+- ⛽ Fuel (City Fuel, Petro Point, Fuelmax)
+- 💊 Medical (Wellness Pharmacy, Healthplus, Medico)
+- 🚗 Transport (Citycab, Quickride, Bikezip, Metro Transit)
+- 📈 Investments (XYZ Stock Brokers, Investwell, Wealthgrow)
+- 🍽️ Restaurants (South Spice, Coffee Corner, Pizza Express)
+- 💸 Salary & NEFT Transfers (ABC Technologies, XYZ Corp)
+
+> **Note**: All merchant names, bank codes, and personal names are completely fictional.
