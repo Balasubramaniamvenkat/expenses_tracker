@@ -1,0 +1,173 @@
+<!-- Account Summary Section -->
+<div class="account-summary" *ngIf="(accounts$ | async) as accounts">
+  <div *ngIf="accounts.length > 0">
+    
+    <!-- Summary Header -->
+    <mat-card class="summary-header-card">
+      <mat-card-header>
+        <mat-icon mat-card-avatar class="summary-icon">account_balance</mat-icon>
+        <mat-card-title>Account Summary</mat-card-title>
+        <mat-card-subtitle>{{ totalAccounts }} account(s) loaded with {{ formatNumber(totalTransactions) }} transactions</mat-card-subtitle>
+      </mat-card-header>
+      
+      <mat-card-content>
+        <!-- Overall Statistics -->
+        <div class="overall-stats">
+          <div class="stat-item income">
+            <mat-icon>trending_up</mat-icon>
+            <div class="stat-content">
+              <span class="stat-label">Total Income</span>
+              <span class="stat-value">{{ formatCurrency(totalIncome) }}</span>
+            </div>
+          </div>
+          
+          <div class="stat-item expenses">
+            <mat-icon>trending_down</mat-icon>
+            <div class="stat-content">
+              <span class="stat-label">Total Expenses</span>
+              <span class="stat-value">{{ formatCurrency(totalExpenses) }}</span>
+            </div>
+          </div>
+          
+          <div class="stat-item balance" [class.negative]="overallBalance < 0">
+            <mat-icon>account_balance_wallet</mat-icon>
+            <div class="stat-content">
+              <span class="stat-label">Net Balance</span>
+              <span class="stat-value" [style.color]="overallBalance >= 0 ? '#4caf50' : '#f44336'">
+                {{ formatCurrency(overallBalance) }}
+              </span>
+            </div>
+          </div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Individual Account Details -->
+    <mat-expansion-panel 
+      *ngFor="let account of accounts; trackBy: trackByAccountId"
+      class="account-panel">
+      
+      <mat-expansion-panel-header>
+        <mat-panel-title>
+          <div class="account-header">
+            <div class="account-avatar">
+              {{ getAccountInitials(account) }}
+            </div>
+            <div class="account-info">
+              <span class="account-name">{{ getAccountDisplayName(account) }}</span>
+              <span class="account-details">
+                {{ formatNumber(account.total_transactions) }} transactions
+              </span>
+            </div>
+          </div>
+        </mat-panel-title>
+        
+        <mat-panel-description>
+          <div class="account-balance" [style.color]="getBalanceColor(account.balance)">
+            {{ formatCurrency(account.balance) }}
+          </div>
+        </mat-panel-description>
+      </mat-expansion-panel-header>
+
+      <!-- Account Details Content -->
+      <div class="account-details-content">
+        <div class="details-grid">
+          
+          <!-- Basic Information -->
+          <div class="detail-section">
+            <h4>Account Information</h4>
+            <div class="detail-items">
+              <div class="detail-item">
+                <span class="detail-label">Account Number:</span>
+                <span class="detail-value">{{ account.account_number || 'N/A' }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Date Range:</span>
+                <span class="detail-value">{{ getDateRangeDisplay(account.date_range) }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Source File:</span>
+                <span class="detail-value">{{ account.file_source }}</span>
+              </div>
+              <div class="detail-item" *ngIf="account.person_name">
+                <span class="detail-label">Assigned to:</span>
+                <span class="detail-value">{{ account.person_name }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Financial Summary -->
+          <div class="detail-section">
+            <h4>Financial Summary</h4>
+            <div class="financial-summary">
+              <div class="financial-item income">
+                <mat-icon>add_circle</mat-icon>
+                <div>
+                  <span class="financial-label">Income</span>
+                  <span class="financial-value">{{ formatCurrency(account.total_income) }}</span>
+                </div>
+              </div>
+              
+              <div class="financial-item expenses">
+                <mat-icon>remove_circle</mat-icon>
+                <div>
+                  <span class="financial-label">Expenses</span>
+                  <span class="financial-value">{{ formatCurrency(account.total_expenses) }}</span>
+                </div>
+              </div>
+              
+              <mat-divider></mat-divider>
+              
+              <div class="financial-item balance" [class.negative]="account.balance < 0">
+                <mat-icon>account_balance</mat-icon>
+                <div>
+                  <span class="financial-label">Balance</span>
+                  <span class="financial-value" [style.color]="account.balance >= 0 ? '#4caf50' : '#f44336'">
+                    {{ formatCurrency(account.balance) }}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Categories -->
+          <div class="detail-section full-width">
+            <h4>Transaction Categories</h4>
+            <div class="categories-display">
+              <mat-chip-listbox>
+                <mat-chip 
+                  *ngFor="let category of account.categories.slice(0, 10)" 
+                  class="category-chip">
+                  {{ category }}
+                </mat-chip>
+                <mat-chip 
+                  *ngIf="account.categories.length > 10" 
+                  class="more-categories-chip">
+                  +{{ account.categories.length - 10 }} more
+                </mat-chip>
+              </mat-chip-listbox>
+            </div>
+          </div>
+        </div>
+      </div>
+    </mat-expansion-panel>
+
+    <!-- Action Buttons -->
+    <div class="summary-actions">
+      <button mat-raised-button color="primary" routerLink="/transactions">
+        <mat-icon>list</mat-icon>
+        View Transactions
+      </button>
+      
+      <button mat-raised-button color="accent" routerLink="/categories">
+        <mat-icon>category</mat-icon>
+        Analyze Categories
+      </button>
+      
+      <button mat-raised-button routerLink="/insights">
+        <mat-icon>insights</mat-icon>
+        View Insights
+      </button>
+    </div>
+  </div>
+</div>

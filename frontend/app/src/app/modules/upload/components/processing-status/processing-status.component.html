@@ -1,0 +1,99 @@
+<!-- Processing Status Overlay -->
+<div class="processing-overlay" *ngIf="uploadProgress$ | async as progress">
+  <mat-card class="processing-card">
+    <mat-card-header>
+      <mat-icon 
+        mat-card-avatar 
+        [color]="getStatusColor(progress.status)"
+        class="processing-icon"
+        [class.spinning]="progress.status === 'uploading' || progress.status === 'processing'">
+        {{ getStatusIcon(progress.status) }}
+      </mat-icon>
+      <mat-card-title>{{ getStatusText(progress.status) }}</mat-card-title>
+      <mat-card-subtitle>Please wait while we process your files</mat-card-subtitle>
+    </mat-card-header>
+
+    <mat-card-content>
+      <!-- Current File Information -->
+      <div class="current-file-info">
+        <div class="file-info-header">
+          <span class="file-name">{{ progress.current_file_name }}</span>
+          <span class="file-counter">
+            File {{ progress.current_file }} of {{ progress.total_files }}
+          </span>
+        </div>
+        
+        <!-- Current File Progress -->
+        <div class="progress-section">
+          <div class="progress-header">
+            <span class="progress-label">Current File Progress</span>
+            <span class="progress-percentage">{{ progress.current_file_progress }}%</span>
+          </div>
+          <mat-progress-bar 
+            mode="determinate" 
+            [value]="progress.current_file_progress"
+            class="file-progress-bar">
+          </mat-progress-bar>
+        </div>
+      </div>
+
+      <!-- Overall Progress -->
+      <div class="overall-progress">
+        <div class="progress-header">
+          <span class="progress-label">Overall Progress</span>
+          <span class="progress-percentage">{{ getProgressPercentage(progress) }}%</span>
+        </div>
+        <mat-progress-bar 
+          mode="determinate" 
+          [value]="progress.overall_progress"
+          class="overall-progress-bar">
+        </mat-progress-bar>
+      </div>
+
+      <!-- Status Details -->
+      <div class="status-details">
+        <div class="status-grid">
+          <div class="status-item">
+            <mat-icon>description</mat-icon>
+            <div class="status-content">
+              <span class="status-label">Total Files</span>
+              <span class="status-value">{{ progress.total_files }}</span>
+            </div>
+          </div>
+          
+          <div class="status-item">
+            <mat-icon>schedule</mat-icon>
+            <div class="status-content">
+              <span class="status-label">Current File</span>
+              <span class="status-value">{{ progress.current_file }}</span>
+            </div>
+          </div>
+          
+          <div class="status-item">
+            <mat-icon [color]="getStatusColor(progress.status)">
+              {{ getStatusIcon(progress.status) }}
+            </mat-icon>
+            <div class="status-content">
+              <span class="status-label">Status</span>
+              <span class="status-value">{{ progress.status }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Processing Tips -->
+      <div class="processing-tips" *ngIf="progress.status === 'processing'">
+        <mat-icon>info</mat-icon>
+        <div class="tips-content">
+          <h4>Processing your data...</h4>
+          <ul>
+            <li>Extracting transaction information</li>
+            <li>Categorizing expenses and income</li>
+            <li>Calculating summaries and insights</li>
+            <li>Preparing visualizations</li>
+          </ul>
+        </div>
+      </div>
+    </mat-card-content>
+  </mat-card>
+</div>

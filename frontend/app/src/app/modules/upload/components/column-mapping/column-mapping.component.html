@@ -1,0 +1,102 @@
+<div class="column-mapping-container">
+  <mat-card>
+    <mat-card-header>
+      <mat-card-title>
+        <mat-icon>map</mat-icon>
+        Column Mapping for {{ file.name }}
+      </mat-card-title>
+      <mat-card-subtitle>
+        Map the columns in your file to the expected data fields
+      </mat-card-subtitle>
+    </mat-card-header>
+
+    <mat-card-content>
+      <form [formGroup]="mappingForm" (ngSubmit)="onSubmit()">
+        
+        <!-- Required Columns Section -->
+        <div class="mapping-section">
+          <h3 class="section-title">
+            <mat-icon class="required-icon">star</mat-icon>
+            Required Columns
+          </h3>
+          
+          <div class="columns-grid">
+            <div *ngFor="let column of requiredColumns" class="column-mapping-item">
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>{{ column.label }} *</mat-label>
+                <mat-select [formControlName]="column.key" [required]="column.required">
+                  <mat-option *ngFor="let option of getColumnOptions()" 
+                             [value]="option"
+                             [disabled]="option && isColumnMapped(option) && mappingForm.get(column.key)?.value !== option">
+                    {{ option || 'Select column...' }}
+                  </mat-option>
+                </mat-select>
+                <mat-error *ngIf="getFormError(column.key)">
+                  {{ getFormError(column.key) }}
+                </mat-error>
+              </mat-form-field>
+            </div>
+          </div>
+        </div>
+
+        <!-- Optional Columns Section -->
+        <div class="mapping-section">
+          <h3 class="section-title">
+            <mat-icon class="optional-icon">star_outline</mat-icon>
+            Optional Columns
+          </h3>
+          
+          <div class="columns-grid">
+            <div *ngFor="let column of optionalColumns" class="column-mapping-item">
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>{{ column.label }}</mat-label>
+                <mat-select [formControlName]="column.key">
+                  <mat-option *ngFor="let option of getColumnOptions()" 
+                             [value]="option"
+                             [disabled]="option && isColumnMapped(option) && mappingForm.get(column.key)?.value !== option">
+                    {{ option || 'Not mapped' }}
+                  </mat-option>
+                </mat-select>
+              </mat-form-field>
+            </div>
+          </div>
+        </div>
+
+        <!-- Available Columns Preview -->
+        <div class="available-columns-section">
+          <h3 class="section-title">
+            <mat-icon>view_column</mat-icon>
+            Available Columns in File
+          </h3>
+          
+          <div class="columns-preview">
+            <mat-chip-list>
+              <mat-chip *ngFor="let column of availableColumns" 
+                       [selected]="isColumnMapped(column)"
+                       [color]="isColumnMapped(column) ? 'primary' : 'default'">
+                {{ column }}
+                <mat-icon *ngIf="isColumnMapped(column)" matChipTrailingIcon>check</mat-icon>
+              </mat-chip>
+            </mat-chip-list>
+          </div>
+        </div>
+
+      </form>
+    </mat-card-content>
+
+    <mat-card-actions align="end">
+      <button mat-button type="button" (click)="onCancel()">
+        <mat-icon>cancel</mat-icon>
+        Cancel
+      </button>
+      <button mat-raised-button 
+              color="primary" 
+              type="submit"
+              [disabled]="!mappingForm.valid"
+              (click)="onSubmit()">
+        <mat-icon>check</mat-icon>
+        Apply Mapping
+      </button>
+    </mat-card-actions>
+  </mat-card>
+</div>

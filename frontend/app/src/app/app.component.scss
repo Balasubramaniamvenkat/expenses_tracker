@@ -1,0 +1,25 @@
+.app-container {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-main {
+  flex: 1;
+  overflow-x: hidden;
+}
+
+/* Reset any global styles that might cause duplication */
+* {
+  box-sizing: border-box;
+}
+
+/* Ensure no duplicate content rendering */
+app-navigation {
+  position: relative;
+  z-index: 1000;
+}
+
+router-outlet {
+  display: block;
+}

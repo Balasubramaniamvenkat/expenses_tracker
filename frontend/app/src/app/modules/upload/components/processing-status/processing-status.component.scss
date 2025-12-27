@@ -1,0 +1,282 @@
+.processing-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+
+  .processing-card {
+    min-width: 500px;
+    max-width: 600px;
+    width: 100%;
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+
+    mat-card-header {
+      padding-bottom: 16px;
+
+      .processing-icon {
+        background-color: transparent;
+        color: var(--mdc-theme-primary);
+        font-size: 2rem;
+        width: 2rem;
+        height: 2rem;
+
+        &.spinning {
+          animation: spin 2s linear infinite;
+        }
+      }
+
+      mat-card-title {
+        font-size: 1.5rem;
+        font-weight: 500;
+        color: var(--mdc-theme-on-surface);
+      }
+
+      mat-card-subtitle {
+        color: var(--mdc-theme-on-surface-variant);
+        margin-top: 8px;
+      }
+    }
+
+    mat-card-content {
+      padding-top: 0;
+
+      .current-file-info {
+        margin-bottom: 24px;
+        padding: 16px;
+        background: linear-gradient(135deg, #f8f9ff 0%, #f0f4ff 100%);
+        border-radius: 8px;
+        border-left: 4px solid var(--mdc-theme-primary);
+
+        .file-info-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 12px;
+
+          .file-name {
+            font-weight: 500;
+            color: var(--mdc-theme-on-surface);
+            font-size: 1.1rem;
+          }
+
+          .file-counter {
+            font-size: 0.9rem;
+            color: var(--mdc-theme-on-surface-variant);
+            background: rgba(255, 255, 255, 0.7);
+            padding: 4px 8px;
+            border-radius: 12px;
+          }
+        }
+      }
+
+      .progress-section, .overall-progress {
+        margin-bottom: 20px;
+
+        .progress-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 8px;
+
+          .progress-label {
+            font-weight: 500;
+            color: var(--mdc-theme-on-surface-variant);
+          }
+
+          .progress-percentage {
+            font-weight: 600;
+            color: var(--mdc-theme-primary);
+          }
+        }
+
+        .file-progress-bar {
+          height: 8px;
+          border-radius: 4px;
+        }
+
+        .overall-progress-bar {
+          height: 12px;
+          border-radius: 6px;
+        }
+      }
+
+      .overall-progress {
+        padding: 16px;
+        background: linear-gradient(135deg, #fff8e1 0%, #fff3c4 100%);
+        border-radius: 8px;
+        border-left: 4px solid #ff9800;
+      }
+
+      .status-details {
+        margin: 24px 0;
+
+        .status-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 16px;
+
+          .status-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.5);
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+
+            mat-icon {
+              font-size: 1.5rem;
+              width: 1.5rem;
+              height: 1.5rem;
+              color: var(--mdc-theme-on-surface-variant);
+            }
+
+            .status-content {
+              display: flex;
+              flex-direction: column;
+
+              .status-label {
+                font-size: 0.8rem;
+                color: var(--mdc-theme-on-surface-variant);
+                margin-bottom: 2px;
+              }
+
+              .status-value {
+                font-weight: 500;
+                color: var(--mdc-theme-on-surface);
+              }
+            }
+          }
+        }
+      }
+
+      .processing-tips {
+        display: flex;
+        gap: 12px;
+        padding: 16px;
+        background: linear-gradient(135deg, #e8f5e8 0%, #f1f8e9 100%);
+        border-radius: 8px;
+        border-left: 4px solid #4caf50;
+        margin-top: 20px;
+
+        mat-icon {
+          color: #4caf50;
+          margin-top: 4px;
+        }
+
+        .tips-content {
+          flex: 1;
+
+          h4 {
+            margin: 0 0 8px 0;
+            color: var(--mdc-theme-on-surface);
+            font-weight: 500;
+          }
+
+          ul {
+            margin: 0;
+            padding-left: 20px;
+            color: var(--mdc-theme-on-surface-variant);
+
+            li {
+              margin-bottom: 4px;
+              font-size: 0.9rem;
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+// Spinning animation for processing icons
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+// Responsive design
+@media (max-width: 768px) {
+  .processing-overlay {
+    padding: 16px;
+
+    .processing-card {
+      min-width: auto;
+      width: 100%;
+
+      mat-card-header {
+        .processing-icon {
+          font-size: 1.5rem;
+          width: 1.5rem;
+          height: 1.5rem;
+        }
+
+        mat-card-title {
+          font-size: 1.2rem;
+        }
+      }
+
+      mat-card-content {
+        .current-file-info .file-info-header {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 8px;
+
+          .file-name {
+            font-size: 1rem;
+          }
+        }
+
+        .status-details .status-grid {
+          grid-template-columns: 1fr;
+          gap: 12px;
+
+          .status-item {
+            padding: 8px;
+
+            mat-icon {
+              font-size: 1.2rem;
+              width: 1.2rem;
+              height: 1.2rem;
+            }
+          }
+        }
+
+        .processing-tips {
+          flex-direction: column;
+
+          mat-icon {
+            align-self: flex-start;
+          }
+        }
+      }
+    }
+  }
+}
+
+// Fade in animation
+.processing-overlay {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

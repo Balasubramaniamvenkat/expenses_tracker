@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Family Finance Tracker</title>
+  <base href="/">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
+  
+  <!-- Preconnect to Google Fonts for faster loading -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  
+  <!-- Load fonts directly for reliable rendering -->
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  
+  <!-- Inline critical CSS for immediate rendering -->
+  <style>
+    /* Critical CSS - prevents flash of unstyled content */
+    body {
+      font-family: Roboto, -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+      margin: 0;
+      background-color: #F5F7FA;
+    }
+    
+    /* Material Icons fallback until font loads */
+    .mat-icon {
+      font-family: 'Material Icons', Arial, sans-serif;
+      font-size: 24px;
+      display: inline-block;
+      width: 24px;
+      height: 24px;
+    }
+    
+    /* Initial loader to show something immediately */
+    .app-initial-loader {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      background: linear-gradient(135deg, #1976D2 0%, #00897B 100%);
+    }
+    
+    .app-initial-loader .spinner {
+      width: 50px;
+      height: 50px;
+      border: 3px solid rgba(255, 255, 255, 0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    /* Hide loader once app loads */
+    app-root:not(:empty) + .app-initial-loader,
+    app-root:not(:empty) ~ .app-initial-loader {
+      display: none;
+    }
+  </style>
+</head>
+<body class="mat-typography">
+  <app-root></app-root>
+</body>
+</html>

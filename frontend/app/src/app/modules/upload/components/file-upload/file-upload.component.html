@@ -1,0 +1,200 @@
+<!-- Main Upload Container -->
+<div class="upload-container">
+  <!-- Header Section -->
+  <div class="upload-header">
+    <mat-icon class="upload-main-icon">cloud_upload</mat-icon>
+    <h2>Upload Your Bank Statements</h2>
+    <p class="upload-subtitle">Combine data from different accounts and track your family's finances</p>
+  </div>
+
+  <!-- Existing Accounts Alert -->
+  <mat-card *ngIf="hasAccounts" class="existing-data-card">
+    <mat-card-header>
+      <mat-icon mat-card-avatar class="success-icon">check_circle</mat-icon>
+      <mat-card-title>Data Already Loaded</mat-card-title>
+      <mat-card-subtitle>You have existing account data</mat-card-subtitle>
+    </mat-card-header>
+    <mat-card-content>
+      <p>{{ (accounts$ | async)?.length }} account(s) are currently loaded and ready for analysis.</p>
+      <div class="existing-data-actions">
+        <button mat-stroked-button color="warn" (click)="clearAllData()">
+          <mat-icon>delete</mat-icon>
+          Clear All Data
+        </button>
+      </div>    </mat-card-content>
+  </mat-card>
+
+  <!-- Upload Area -->
+  <mat-card class="upload-area-card">
+    <div class="upload-zone" 
+         [class.drag-over]="isDragOver"
+         [class.disabled]="isUploading">
+      
+      <div class="ngx-drop-container">
+        <ngx-file-drop 
+          dropZoneLabel="Drop files here"
+          (onFileDrop)="onFileDrop($event)"
+          (onFileOver)="fileOver($event)"
+          (onFileLeave)="fileLeave($event)"
+          [showBrowseBtn]="false"
+          [directory]="false">
+        </ngx-file-drop>
+      </div>
+      
+      <div class="upload-content">
+        <div class="animated-icon-container">
+          <mat-icon class="upload-icon" [class.spinning]="isUploading">
+            {{ isUploading ? 'hourglass_empty' : 'cloud_upload' }}
+          </mat-icon>
+          <div class="upload-animation-dots" *ngIf="isUploading">
+            <span></span><span></span><span></span>
+          </div>
+        </div>
+        
+        <h3>{{ isUploading ? 'Processing Files...' : 'Upload Multiple CSV Files' }}</h3>
+        
+        <p class="upload-description" *ngIf="!isUploading">
+          Drag and drop multiple CSV files here
+        </p>
+        
+        <div class="upload-progress-info" *ngIf="uploadProgress$ | async as progress">
+          <p>{{ progress.current_file_name }}</p>
+          <mat-progress-bar 
+            mode="determinate" 
+            [value]="progress.overall_progress">
+          </mat-progress-bar>
+          <p class="progress-text">
+            {{ progress.current_file }} of {{ progress.total_files }} files 
+            ({{ progress.overall_progress }}%)
+          </p>
+        </div>
+        
+        <div class="upload-button-container" *ngIf="!isUploading">
+          <button mat-raised-button color="primary" (click)="triggerFileInput()" class="browse-button">
+            <mat-icon>folder_open</mat-icon>
+            Browse Files
+          </button>
+          <p class="file-types">
+            Supported: .csv files up to 50MB each
+          </p>
+        </div>
+      </div>
+      
+      <!-- Hidden file input -->
+      <input 
+        id="file-input"
+        type="file"
+        multiple
+        accept=".csv"
+        (change)="onFileSelected($event)"
+        style="display: none">
+    </div>
+  </mat-card>  <!-- Upload Queue -->
+  <div class="upload-queue" *ngIf="uploadQueue$ | async as queue">
+    <mat-card *ngIf="queue.length > 0" class="queue-card">
+      <mat-card-header>
+        <mat-icon mat-card-avatar color="primary">queue</mat-icon>
+        <mat-card-title>Upload Queue</mat-card-title>
+        <mat-card-subtitle>{{ queue.length }} file(s) ready</mat-card-subtitle>
+        
+        <!-- Queue Actions -->
+        <div class="queue-actions">
+          <button 
+            mat-raised-button 
+            color="primary"
+            [disabled]="isUploading || !queue.some(f => f.status === 'pending')"
+            (click)="startBatchUpload()"
+            class="action-button">
+            <mat-icon>upload</mat-icon>
+            Upload All
+          </button>
+          
+          <button 
+            mat-stroked-button
+            [disabled]="isUploading"
+            (click)="clearQueue()"
+            class="action-button">
+            <mat-icon>clear_all</mat-icon>
+            Clear All
+          </button>
+        </div>
+      </mat-card-header>
+      
+      <mat-card-content>
+        <!-- File List -->
+        <div class="file-list">
+          <div 
+            *ngFor="let file of queue; trackBy: trackByFileId"
+            class="file-item"
+            [class]="'status-' + file.status">
+            
+            <div class="file-info">
+              <div class="file-header">
+                <mat-icon [color]="getStatusColor(file.status)" class="status-icon">
+                  {{ getFileStatusIcon(file.status) }}
+                </mat-icon>
+                
+                <div class="file-details">
+                  <span class="file-name">{{ file.name }}</span>
+                  <span class="file-size">{{ formatFileSize(file.size) }}</span>
+                </div>
+                
+                <button 
+                  mat-icon-button
+                  class="remove-file-btn"
+                  [disabled]="file.status === 'uploading' || file.status === 'processing'"
+                  (click)="removeFile(file.id)"
+                  matTooltip="Remove file">
+                  <mat-icon>close</mat-icon>
+                </button>
+              </div>
+              
+              <!-- Progress Bar -->
+              <div class="file-progress" *ngIf="file.status === 'uploading' || file.status === 'processing'">
+                <mat-progress-bar 
+                  mode="determinate" 
+                  [value]="file.progress"
+                  color="accent">
+                </mat-progress-bar>
+                <span class="progress-percentage">{{ file.progress }}%</span>
+              </div>
+              
+              <!-- Error Message -->
+              <div class="file-error" *ngIf="file.status === 'error' && file.error">
+                <mat-icon color="warn">error</mat-icon>
+                <span>{{ file.error }}</span>
+              </div>
+              
+              <!-- Success Result -->
+              <div class="file-result" *ngIf="file.status === 'success' && file.result">
+                <div class="result-summary">
+                  <div class="result-badge account-name">
+                    <mat-icon>account_balance</mat-icon>
+                    {{ file.result.account_name }}
+                  </div>
+                  <div class="result-badge record-count">
+                    <mat-icon>receipt_long</mat-icon>
+                    {{ file.result.record_count }} transactions
+                  </div>
+                  <div class="result-badge date-range">
+                    <mat-icon>date_range</mat-icon>
+                    {{ file.result.date_range[0] }} to {{ file.result.date_range[1] }}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+  </div>
+
+  <!-- Account Summary Section -->
+  <app-account-summary></app-account-summary>
+
+  <!-- Privacy Notice -->
+  <div class="privacy-notice">
+    <mat-icon>lock</mat-icon>
+    <span>Your data is processed locally and never uploaded to external servers</span>
+  </div>
+</div>

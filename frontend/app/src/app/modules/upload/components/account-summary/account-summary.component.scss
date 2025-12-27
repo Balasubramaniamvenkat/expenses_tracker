@@ -1,0 +1,358 @@
+.account-summary {
+  margin-top: 24px;
+
+  .summary-header-card {
+    margin-bottom: 24px;
+    border-left: 4px solid var(--mdc-theme-primary);
+
+    .summary-icon {
+      background-color: var(--mdc-theme-primary);
+      color: white;
+    }
+
+    .overall-stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 24px;
+      margin-top: 16px;
+
+      .stat-item {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 20px;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #f8f9ff 0%, #f0f4ff 100%);
+        border: 1px solid #e3f2fd;
+        transition: all 0.3s ease;
+
+        &:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+        }
+
+        &.income {
+          border-left: 4px solid #4caf50;
+          
+          mat-icon {
+            color: #4caf50;
+            font-size: 2rem;
+            width: 2rem;
+            height: 2rem;
+          }
+        }
+
+        &.expenses {
+          border-left: 4px solid #f44336;
+          
+          mat-icon {
+            color: #f44336;
+            font-size: 2rem;
+            width: 2rem;
+            height: 2rem;
+          }
+        }
+
+        &.balance {
+          border-left: 4px solid var(--mdc-theme-primary);
+          
+          mat-icon {
+            color: var(--mdc-theme-primary);
+            font-size: 2rem;
+            width: 2rem;
+            height: 2rem;
+          }
+
+          &.negative {
+            border-left-color: #f44336;
+            
+            mat-icon {
+              color: #f44336;
+            }
+          }
+        }
+
+        .stat-content {
+          display: flex;
+          flex-direction: column;
+
+          .stat-label {
+            font-size: 0.9rem;
+            color: var(--mdc-theme-on-surface-variant);
+            margin-bottom: 4px;
+          }
+
+          .stat-value {
+            font-size: 1.4rem;
+            font-weight: 600;
+            color: var(--mdc-theme-on-surface);
+          }
+        }
+      }
+    }
+  }
+
+  .account-panel {
+    margin-bottom: 16px;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid #e0e0e0;
+
+    &:hover {
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    mat-expansion-panel-header {
+      padding: 16px 24px;
+
+      .account-header {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+
+        .account-avatar {
+          width: 48px;
+          height: 48px;
+          border-radius: 50%;
+          background: linear-gradient(135deg, var(--mdc-theme-primary) 0%, var(--mdc-theme-primary-variant, #1976d2) 100%);
+          color: white;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-weight: 600;
+          font-size: 1.1rem;
+        }
+
+        .account-info {
+          display: flex;
+          flex-direction: column;
+
+          .account-name {
+            font-weight: 500;
+            color: var(--mdc-theme-on-surface);
+            margin-bottom: 4px;
+          }
+
+          .account-details {
+            font-size: 0.9rem;
+            color: var(--mdc-theme-on-surface-variant);
+          }
+        }
+      }
+
+      .account-balance {
+        font-weight: 600;
+        font-size: 1.2rem;
+      }
+    }
+
+    .account-details-content {
+      padding: 0 24px 24px 24px;
+
+      .details-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 24px;
+
+        .detail-section {
+          &.full-width {
+            grid-column: 1 / -1;
+          }
+
+          h4 {
+            margin: 0 0 16px 0;
+            color: var(--mdc-theme-on-surface);
+            font-weight: 500;
+            border-bottom: 2px solid var(--mdc-theme-primary);
+            padding-bottom: 8px;
+          }
+
+          .detail-items {
+            .detail-item {
+              display: flex;
+              justify-content: space-between;
+              margin-bottom: 12px;
+              padding: 8px 0;
+              border-bottom: 1px solid #f5f5f5;
+
+              .detail-label {
+                font-weight: 500;
+                color: var(--mdc-theme-on-surface-variant);
+              }
+
+              .detail-value {
+                color: var(--mdc-theme-on-surface);
+                text-align: right;
+              }
+            }
+          }
+
+          .financial-summary {
+            .financial-item {
+              display: flex;
+              align-items: center;
+              gap: 12px;
+              padding: 12px 0;
+
+              mat-icon {
+                font-size: 1.5rem;
+                width: 1.5rem;
+                height: 1.5rem;
+              }
+
+              &.income mat-icon {
+                color: #4caf50;
+              }
+
+              &.expenses mat-icon {
+                color: #f44336;
+              }
+
+              &.balance mat-icon {
+                color: var(--mdc-theme-primary);
+              }
+
+              > div {
+                display: flex;
+                flex: 1;
+                justify-content: space-between;
+                align-items: center;
+
+                .financial-label {
+                  font-weight: 500;
+                  color: var(--mdc-theme-on-surface-variant);
+                }
+
+                .financial-value {
+                  font-weight: 600;
+                  font-size: 1.1rem;
+                  color: var(--mdc-theme-on-surface);
+                }
+              }
+            }
+
+            mat-divider {
+              margin: 12px 0;
+            }
+          }
+
+          .categories-display {
+            mat-chip-listbox {
+              display: flex;
+              flex-wrap: wrap;
+              gap: 8px;
+
+              mat-chip {
+                &.category-chip {
+                  background-color: rgba(63, 81, 181, 0.1);
+                  color: var(--mdc-theme-primary);
+                }
+
+                &.more-categories-chip {
+                  background-color: rgba(158, 158, 158, 0.1);
+                  color: var(--mdc-theme-on-surface-variant);
+                  font-style: italic;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  .summary-actions {
+    margin-top: 32px;
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    flex-wrap: wrap;
+
+    button {
+      min-width: 160px;
+      height: 48px;
+      border-radius: 24px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+  }
+}
+
+// Responsive Design
+@media (max-width: 768px) {
+  .account-summary {
+    .summary-header-card .overall-stats {
+      grid-template-columns: 1fr;
+      gap: 16px;
+
+      .stat-item {
+        padding: 16px;
+
+        mat-icon {
+          font-size: 1.5rem;
+          width: 1.5rem;
+          height: 1.5rem;
+        }
+
+        .stat-content .stat-value {
+          font-size: 1.2rem;
+        }
+      }
+    }
+
+    .account-panel {
+      mat-expansion-panel-header {
+        padding: 12px 16px;
+
+        .account-header {
+          gap: 12px;
+
+          .account-avatar {
+            width: 40px;
+            height: 40px;
+            font-size: 1rem;
+          }
+        }
+
+        .account-balance {
+          font-size: 1rem;
+        }
+      }
+
+      .account-details-content {
+        padding: 0 16px 16px 16px;
+
+        .details-grid {
+          grid-template-columns: 1fr;
+          gap: 16px;
+
+          .detail-section .detail-items .detail-item {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 4px;
+
+            .detail-value {
+              text-align: left;
+            }
+          }
+        }
+      }
+    }
+
+    .summary-actions {
+      flex-direction: column;
+      align-items: stretch;
+
+      button {
+        min-width: auto;
+        width: 100%;
+      }
+    }
+  }
+}
+
+// Track by function helper
+.account-panel {
+  transition: all 0.3s ease;
+}

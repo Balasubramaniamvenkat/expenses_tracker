@@ -1,0 +1,319 @@
+<div class="transaction-list-container">
+  <!-- Premium Summary Cards -->
+  <div class="summary-section" *ngIf="metrics">
+    <h2 class="section-title">Financial Overview</h2>
+    <div class="summary-cards">
+      <!-- Total Metrics -->
+      <mat-card class="summary-group">
+        <mat-card-header>
+          <div class="header-icon">
+            <mat-icon>insights</mat-icon>
+          </div>
+          <mat-card-title>Total Metrics</mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          <div class="metrics-grid">
+            <div class="metric-item">
+              <mat-icon>receipt_long</mat-icon>
+              <div class="metric-value">{{ metrics.total_transactions | number }}</div>
+              <div class="metric-label">Transactions</div>
+            </div>
+            <div class="metric-item income">
+              <mat-icon>arrow_upward</mat-icon>
+              <div class="metric-value">{{ formatAmount(metrics.total_income) }}</div>
+              <div class="metric-label">Income</div>
+            </div>
+            <div class="metric-item expense">
+              <mat-icon>arrow_downward</mat-icon>
+              <div class="metric-value">{{ formatAmount(metrics.total_expenses) }}</div>
+              <div class="metric-label">Expenses</div>
+            </div>
+            <div class="metric-item" [ngClass]="{'net-positive': metrics.net_savings >= 0, 'net-negative': metrics.net_savings < 0}">
+              <mat-icon>{{ metrics.net_savings >= 0 ? 'savings' : 'trending_down' }}</mat-icon>
+              <div class="metric-value">{{ formatAmount(metrics.net_savings) }}</div>
+              <div class="metric-label">Net Savings</div>
+            </div>
+          </div>
+        </mat-card-content>
+      </mat-card>
+
+      <!-- Monthly Averages -->
+      <mat-card class="summary-group" *ngIf="metrics.monthly_averages.months > 0">
+        <mat-card-header>
+          <div class="header-icon">
+            <mat-icon>calendar_month</mat-icon>
+          </div>
+          <mat-card-title>Monthly Breakdown</mat-card-title>
+          <mat-card-subtitle>Averaged over {{ metrics.monthly_averages.months }} month(s)</mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content>
+          <div class="metrics-grid">
+            <div class="metric-item">
+              <mat-icon>receipt_long</mat-icon>
+              <div class="metric-value">{{ metrics.monthly_averages.transactions | number:'1.1-1' }}</div>
+              <div class="metric-label">Transactions</div>
+            </div>
+            <div class="metric-item income">
+              <mat-icon>arrow_upward</mat-icon>
+              <div class="metric-value">{{ formatAmount(metrics.monthly_averages.income) }}</div>
+              <div class="metric-label">Income</div>
+            </div>
+            <div class="metric-item expense">
+              <mat-icon>arrow_downward</mat-icon>
+              <div class="metric-value">{{ formatAmount(metrics.monthly_averages.expenses) }}</div>
+              <div class="metric-label">Expenses</div>
+            </div>
+            <div class="metric-item" [ngClass]="{'net-positive': metrics.monthly_averages.savings >= 0, 'net-negative': metrics.monthly_averages.savings < 0}">
+              <mat-icon>{{ metrics.monthly_averages.savings >= 0 ? 'savings' : 'trending_down' }}</mat-icon>
+              <div class="metric-value">{{ formatAmount(metrics.monthly_averages.savings) }}</div>
+              <div class="metric-label">Savings</div>
+            </div>
+          </div>
+        </mat-card-content>
+      </mat-card>
+
+      <!-- Yearly Averages -->
+      <mat-card class="summary-group" *ngIf="metrics.yearly_averages.years > 0">
+        <mat-card-header>
+          <div class="header-icon">
+            <mat-icon>event_note</mat-icon>
+          </div>
+          <mat-card-title>Annual Overview</mat-card-title>
+          <mat-card-subtitle>Averaged over {{ metrics.yearly_averages.years | number:'1.0-0' }} year(s)</mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content>
+          <div class="metrics-grid">
+            <div class="metric-item">
+              <mat-icon>receipt_long</mat-icon>
+              <div class="metric-value">{{ metrics.yearly_averages.transactions | number:'1.0-0' }}</div>
+              <div class="metric-label">Transactions</div>
+            </div>
+            <div class="metric-item income">
+              <mat-icon>arrow_upward</mat-icon>
+              <div class="metric-value">{{ formatAmount(metrics.yearly_averages.income) }}</div>
+              <div class="metric-label">Income</div>
+            </div>
+            <div class="metric-item expense">
+              <mat-icon>arrow_downward</mat-icon>
+              <div class="metric-value">{{ formatAmount(metrics.yearly_averages.expenses) }}</div>
+              <div class="metric-label">Expenses</div>
+            </div>
+            <div class="metric-item" [ngClass]="{'net-positive': metrics.yearly_averages.savings >= 0, 'net-negative': metrics.yearly_averages.savings < 0}">
+              <mat-icon>{{ metrics.yearly_averages.savings >= 0 ? 'savings' : 'trending_down' }}</mat-icon>
+              <div class="metric-value">{{ formatAmount(metrics.yearly_averages.savings) }}</div>
+              <div class="metric-label">Savings</div>
+            </div>
+          </div>
+        </mat-card-content>
+      </mat-card>
+    </div>
+  </div>
+
+  <!-- Filters Section -->
+  <mat-card class="filters-card">
+    <mat-card-header>
+      <mat-card-title>
+        <mat-icon>tune</mat-icon>
+        Smart Filters
+      </mat-card-title>
+    </mat-card-header>
+    
+    <mat-card-content>
+      <form [formGroup]="filterForm" class="filters-form">
+        <div class="filter-row">
+          <!-- Search -->
+          <mat-form-field class="filter-field">
+            <mat-label>Search</mat-label>
+            <input matInput formControlName="search_text" placeholder="Search descriptions...">
+            <mat-icon matSuffix>search</mat-icon>
+          </mat-form-field>
+
+          <!-- Date Range -->
+          <mat-form-field class="filter-field">
+            <mat-label>From Date</mat-label>
+            <input matInput [matDatepicker]="fromPicker" formControlName="date_from" (dateChange)="onDateFromChange($event)">
+            <mat-datepicker-toggle matSuffix [for]="fromPicker"></mat-datepicker-toggle>
+            <mat-datepicker #fromPicker></mat-datepicker>
+          </mat-form-field>
+
+          <mat-form-field class="filter-field">
+            <mat-label>To Date</mat-label>
+            <input matInput [matDatepicker]="toPicker" formControlName="date_to" (dateChange)="onDateToChange($event)">
+            <mat-datepicker-toggle matSuffix [for]="toPicker"></mat-datepicker-toggle>
+            <mat-datepicker #toPicker></mat-datepicker>
+          </mat-form-field>
+        </div>
+
+        <div class="filter-row">
+          <!-- Categories -->
+          <mat-form-field class="filter-field category-filter" appearance="outline">
+            <mat-label>Categories</mat-label>
+            <mat-select formControlName="categories" multiple>
+              <mat-option *ngFor="let category of availableCategories; trackBy: trackByCategory" [value]="category">
+                {{ category }}
+              </mat-option>
+            </mat-select>
+            <mat-hint>Select categories</mat-hint>
+          </mat-form-field>
+
+          <!-- Accounts -->
+          <mat-form-field class="filter-field account-filter" appearance="outline">
+            <mat-label>Account</mat-label>
+            <mat-select formControlName="accounts" multiple>
+              <mat-option *ngFor="let account of availableAccounts; trackBy: trackByAccount" [value]="account">
+                {{ account }}
+              </mat-option>
+            </mat-select>
+            <mat-hint>Select accounts</mat-hint>
+          </mat-form-field>
+
+          <!-- Amount Range -->
+          <mat-form-field class="filter-field">
+            <mat-label>Min Amount</mat-label>
+            <input matInput type="number" formControlName="amount_min" placeholder="0">
+            <span matPrefix>₹&nbsp;</span>
+          </mat-form-field>
+
+          <mat-form-field class="filter-field">
+            <mat-label>Max Amount</mat-label>
+            <input matInput type="number" formControlName="amount_max" placeholder="1000000">
+            <span matPrefix>₹&nbsp;</span>
+          </mat-form-field>
+        </div>
+
+        <!-- Actions -->
+        <div class="filter-actions">
+          <button mat-raised-button color="warn" (click)="clearFilters()">
+            <mat-icon>clear</mat-icon>
+            Clear Filters
+          </button>
+          <button mat-raised-button color="primary" (click)="applyFilters()">
+            <mat-icon>filter_alt</mat-icon>
+            Apply Filters
+          </button>
+          <button mat-raised-button color="accent" (click)="exportTransactions()">
+            <mat-icon>download</mat-icon>
+            Export
+          </button>
+        </div>
+      </form>
+    </mat-card-content>
+  </mat-card>
+
+  <!-- Transaction Table -->
+  <mat-card class="table-card">
+    <mat-card-header>
+      <mat-card-title>
+        <mat-icon>view_list</mat-icon>
+        Transaction History
+      </mat-card-title>
+    </mat-card-header>
+
+    <mat-card-content>
+      <div class="table-container">
+        <table mat-table [dataSource]="dataSource" matSort class="transactions-table">
+
+          <!-- Date Column -->
+          <ng-container matColumnDef="date">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header>Date</th>
+            <td mat-cell *matCellDef="let transaction">
+              {{ transaction.date | date:'mediumDate' }}
+            </td>
+          </ng-container>
+
+          <!-- Description Column -->
+          <ng-container matColumnDef="description">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header>Description</th>
+            <td mat-cell *matCellDef="let transaction" class="description-cell">
+              <div class="description-main">{{ transaction.description }}</div>
+              <div class="description-sub" *ngIf="transaction.reference">
+                Ref: {{ transaction.reference }}
+              </div>
+            </td>
+          </ng-container>
+
+          <!-- Category Column -->
+          <ng-container matColumnDef="category">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header>Category</th>
+            <td mat-cell *matCellDef="let transaction">
+              <div class="category-main">{{ transaction.category }}</div>
+              <div class="category-sub" *ngIf="transaction.subcategory">
+                {{ transaction.subcategory }}
+              </div>
+            </td>
+          </ng-container>
+
+          <!-- Amount Column -->
+          <ng-container matColumnDef="amount">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header>Amount</th>
+            <td mat-cell *matCellDef="let transaction" [ngClass]="getAmountClass(transaction)">
+              <span class="amount-sign">{{ transaction.type === 'income' ? '+' : '-' }}</span>
+              {{ formatAmount(transaction.amount) }}
+            </td>
+          </ng-container>
+
+          <!-- Account Column -->
+          <ng-container matColumnDef="account">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header>Account</th>
+            <td mat-cell *matCellDef="let transaction">
+              {{ transaction.account }}
+            </td>
+          </ng-container>
+
+          <!-- Balance Column -->
+          <ng-container matColumnDef="balance">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header>Balance</th>
+            <td mat-cell *matCellDef="let transaction">
+              {{ formatAmount(transaction.balance) }}
+            </td>
+          </ng-container>
+
+          <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+        </table>
+
+        <!-- Loading spinner -->
+        <div class="loading-container" *ngIf="isLoading">
+          <mat-spinner diameter="50"></mat-spinner>
+          <p>Loading transactions...</p>
+        </div>
+
+        <!-- No data message -->
+        <div class="no-data-container" *ngIf="!isLoading && dataSource.data.length === 0">
+          <mat-icon class="no-data-icon">receipt_long</mat-icon>
+          <h3>No transactions found</h3>
+          <p>Try adjusting your filters or upload some bank statements.</p>
+        </div>
+
+        <mat-paginator [pageSizeOptions]="[25, 50, 100]" 
+                       showFirstLastButtons
+                       aria-label="Select page of transactions">
+        </mat-paginator>
+      </div>
+    </mat-card-content>
+  </mat-card>
+
+  <!-- Timeline Chart -->
+  <mat-card class="chart-card">
+    <mat-card-header>
+      <mat-card-title>
+        <mat-icon>show_chart</mat-icon>
+        Cash Flow Timeline
+      </mat-card-title>
+      <mat-card-subtitle>
+        Visual analysis of income vs expenses over time
+      </mat-card-subtitle>
+    </mat-card-header>
+    <mat-card-content>
+      <div class="chart-container">
+        <canvas id="timelineChart" width="800" height="400"></canvas>
+        <div *ngIf="!timelineData || (!timelineData?.credits?.length && !timelineData?.debits?.length)" 
+             class="no-data-message">
+          <mat-icon>timeline</mat-icon>
+          <p>No timeline data available for the current filters</p>
+          <small>Try adjusting your date range or removing some filters</small>
+        </div>
+      </div>
+    </mat-card-content>
+  </mat-card>
+</div>

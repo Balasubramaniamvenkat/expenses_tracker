@@ -1,0 +1,279 @@
+/* ====================================================
+   NAVIGATION COMPONENT MODERN STYLING
+   ==================================================== */
+
+/* CRITICAL: Fix for icon and text separation */
+.app-title {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+}
+
+.app-icon {
+  font-size: 2rem !important;
+  height: 2rem !important;
+  width: 2rem !important;
+  margin-right: 8px !important;
+}
+
+.title-text {
+  white-space: nowrap !important;
+  overflow: visible !important;
+}
+
+.nav-item {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  margin: 0 4px !important;
+}
+
+.nav-icon {
+  font-size: 1.5rem !important;
+  height: 1.5rem !important;
+  width: 1.5rem !important;
+  margin-right: 8px !important;
+}
+
+.nav-label {
+  white-space: nowrap !important;
+  overflow: visible !important;
+}
+
+.navigation-container {
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+  color: white;
+  padding: var(--spacing-lg) var(--spacing-xl);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 4px 20px rgba(25, 118, 210, 0.3);
+  position: relative;
+  overflow: hidden;
+  min-height: 80px;
+}
+
+.navigation-container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: 
+    radial-gradient(circle at 20% 80%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
+    radial-gradient(circle at 80% 20%, rgba(255, 255, 255, 0.1) 0%, transparent 50%);
+  pointer-events: none;
+}
+
+.nav-header {
+  position: relative;
+  z-index: 2;
+}
+
+.nav-header .app-title {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  transition: all var(--transition-normal);
+}
+
+.nav-header .app-title:hover {
+  transform: scale(1.02);
+}
+
+.app-icon {
+  font-size: 2.5rem;
+  width: 2.5rem;
+  height: 2.5rem;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.1));
+  border-radius: 50%;
+  padding: var(--spacing-sm);
+  backdrop-filter: blur(10px);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 4px 20px rgba(255, 255, 255, 0.1);
+  transition: all var(--transition-normal);
+}
+
+.app-icon:hover {
+  transform: rotate(5deg) scale(1.1);
+  box-shadow: 0 6px 25px rgba(255, 255, 255, 0.2);
+}
+
+.nav-items {
+  display: flex;
+  gap: var(--spacing-sm);
+  position: relative;
+  z-index: 2;
+}
+
+.nav-item {
+  color: white;
+  border-radius: var(--radius-medium);
+  padding: var(--spacing-md) var(--spacing-lg);
+  transition: all var(--transition-normal);
+  font-weight: 500;
+  font-size: 0.95rem;
+  letter-spacing: 0.25px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(10px);
+  position: relative;
+  overflow: hidden;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.nav-item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left var(--transition-normal);
+}
+
+.nav-item:hover::before {
+  left: 100%;
+}
+
+.nav-item:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+.nav-item.active {
+  background: rgba(255, 255, 255, 0.25);
+  font-weight: 600;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.nav-item.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80%;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.8), transparent);
+  border-radius: var(--radius-small);
+}
+
+.nav-item .mat-icon {
+  margin-right: var(--spacing-sm);
+  font-size: 1.25rem;
+  height: 1.25rem;
+  width: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  transition: all var(--transition-fast);
+}
+
+.nav-item:hover .mat-icon {
+  transform: scale(1.1);
+}
+
+.nav-label {
+  font-size: 0.95rem;
+  line-height: 1;
+  display: inline-block;
+  vertical-align: middle;
+  position: relative;
+  z-index: 1;
+}
+
+/* Enhanced Responsive Design */
+@media (max-width: 768px) {
+  .navigation-container {
+    flex-direction: column;
+    gap: var(--spacing-lg);
+    padding: var(--spacing-md) var(--spacing-lg);
+    min-height: auto;
+  }
+  
+  .nav-header .app-title {
+    font-size: 1.5rem;
+  }
+  
+  .app-icon {
+    font-size: 2rem;
+    width: 2rem;
+    height: 2rem;
+  }
+  
+  .nav-items {
+    width: 100%;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: var(--spacing-md);
+  }
+  
+  .nav-item {
+    flex: 1;
+    min-width: 120px;
+    justify-content: center;
+    text-align: center;
+    padding: var(--spacing-md);
+  }
+  
+  .nav-label {
+    font-size: 0.875rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .navigation-container {
+    padding: var(--spacing-sm) var(--spacing-md);
+  }
+
+  .nav-header .app-title {
+    font-size: 1.25rem;
+    gap: var(--spacing-sm);
+  }
+  
+  .app-icon {
+    font-size: 1.75rem;
+    width: 1.75rem;
+    height: 1.75rem;
+  }
+
+  .nav-item {
+    min-width: 100px;
+    padding: var(--spacing-sm) var(--spacing-md);
+  }
+  
+  .nav-label {
+    display: none;
+  }
+  
+  .nav-item .mat-icon {
+    margin-right: 0;
+    font-size: 1.5rem;
+    height: 1.5rem;
+    width: 1.5rem;
+  }
+
+  .nav-items {
+    gap: var(--spacing-sm);
+  }
+}
+
+/* Dark mode support (future enhancement) */
+@media (prefers-color-scheme: dark) {
+  .navigation-container {
+    background: linear-gradient(135deg, #1a237e 0%, #000051 100%);
+    box-shadow: 0 4px 20px rgba(26, 35, 126, 0.4);
+  }
+}
