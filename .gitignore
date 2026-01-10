@@ -2,6 +2,10 @@
 # Family Finance Tracker - Git Ignore
 # ===========================================
 
+# ----- PowerPoint/Office files -----
+*.pptx
+~$*
+
 # ----- Sensitive Data (DO NOT COMMIT) -----
 # Environment files with API keys
 .env
