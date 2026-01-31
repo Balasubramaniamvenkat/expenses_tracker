@@ -11,8 +11,10 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatMenuModule } from '@angular/material/menu';
+import { MatDividerModule } from '@angular/material/divider';
 import { Subject, takeUntil } from 'rxjs';
-import { AIService, AIModel, ChatMessage, PrivacyStatus } from '../../services/ai.service';
+import { AIService, AIModel, ChatMessage, PrivacyStatus, ChatSession } from '../../services/ai.service';
 import { marked } from 'marked';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 
@@ -31,7 +33,9 @@ import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
     MatProgressSpinnerModule,
     MatChipsModule,
     MatTooltipModule,
-    MatSnackBarModule
+    MatSnackBarModule,
+    MatMenuModule,
+    MatDividerModule
   ],
   template: `
     <div class="chat-page">
@@ -42,7 +46,53 @@ import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
         <div class="gradient-orb orb-3"></div>
       </div>
 
-      <div class="chat-container">
+      <div class="chat-layout">
+        <!-- Chat Sidebar -->
+        <div class="chat-sidebar" [class.collapsed]="sidebarCollapsed">
+          <div class="sidebar-header">
+            <button class="new-chat-btn" (click)="createNewChat()" matTooltip="New Chat">
+              <mat-icon>add</mat-icon>
+              <span class="btn-text">New Chat</span>
+            </button>
+            <button mat-icon-button class="collapse-btn" (click)="toggleSidebar()" 
+                    [matTooltip]="sidebarCollapsed ? 'Expand' : 'Collapse'">
+              <mat-icon>{{ sidebarCollapsed ? 'chevron_right' : 'chevron_left' }}</mat-icon>
+            </button>
+          </div>
+
+          <div class="chat-list" [class.hidden]="sidebarCollapsed">
+            <div class="chat-list-item" 
+                 *ngFor="let chat of chatSessions"
+                 [class.active]="chat.id === activeChatId"
+                 (click)="switchToChat(chat.id)">
+              <mat-icon class="chat-item-icon">chat_bubble_outline</mat-icon>
+              <div class="chat-item-content">
+                <span class="chat-item-title">{{ chat.title }}</span>
+                <span class="chat-item-time">{{ formatChatTime(chat.updatedAt) }}</span>
+              </div>
+              <button mat-icon-button class="chat-item-delete" 
+                      (click)="deleteChat(chat.id, $event)"
+                      matTooltip="Delete chat">
+                <mat-icon>delete_outline</mat-icon>
+              </button>
+            </div>
+
+            <div class="no-chats" *ngIf="chatSessions.length === 0">
+              <mat-icon>forum</mat-icon>
+              <p>No chats yet</p>
+              <span>Click "New Chat" to start</span>
+            </div>
+          </div>
+
+          <div class="sidebar-footer" [class.hidden]="sidebarCollapsed || chatSessions.length === 0">
+            <button mat-button class="clear-all-btn" (click)="clearAllChats()" matTooltip="Clear all chats">
+              <mat-icon>delete_sweep</mat-icon>
+              <span>Clear All</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="chat-container">
         <!-- Header -->
         <div class="header-section">
           <div class="header-content">
@@ -64,7 +114,9 @@ import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
                   <mat-icon>memory</mat-icon>
                   AI Model
                 </mat-label>
-                <mat-select [(value)]="selectedModel" (selectionChange)="onModelChange($event.value)">
+                <mat-select [(value)]="selectedModel" 
+                            (selectionChange)="onModelChange($event.value)"
+                            panelClass="model-select-panel">
                   <mat-optgroup *ngFor="let group of modelGroups" [label]="group.provider">
                     <mat-option *ngFor="let model of group.models" [value]="model.id">
                       <div class="model-option">
@@ -259,6 +311,7 @@ import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
           </div>
         </div>
       </div>
+      </div>
     </div>
   `,
   styles: [`
@@ -321,12 +374,215 @@ import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
       66% { transform: translate(-20px, 20px) scale(0.9); }
     }
 
-    .chat-container {
+    /* ===== Chat Layout with Sidebar ===== */
+    .chat-layout {
       position: relative;
       z-index: 1;
       display: flex;
-      flex-direction: column;
       height: calc(100vh - 64px);
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 20px;
+      gap: 16px;
+    }
+
+    /* ===== Chat Sidebar ===== */
+    .chat-sidebar {
+      width: 280px;
+      flex-shrink: 0;
+      background: rgba(255, 255, 255, 0.9);
+      backdrop-filter: blur(20px);
+      border-radius: 20px;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 4px 24px rgba(102, 126, 234, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.8);
+      transition: width 0.3s ease;
+      overflow: hidden;
+    }
+
+    .chat-sidebar.collapsed {
+      width: 70px;
+    }
+
+    .sidebar-header {
+      display: flex;
+      align-items: center;
+      padding: 16px;
+      gap: 8px;
+      border-bottom: 1px solid rgba(102, 126, 234, 0.1);
+    }
+
+    .collapsed .sidebar-header {
+      flex-direction: column;
+      padding: 12px 8px;
+    }
+
+    .new-chat-btn {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 16px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .new-chat-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+    }
+
+    .collapsed .new-chat-btn {
+      padding: 10px;
+      width: 44px;
+      height: 44px;
+      flex: none;
+    }
+
+    .collapsed .new-chat-btn .btn-text {
+      display: none;
+    }
+
+    .collapse-btn {
+      color: #667eea;
+      flex-shrink: 0;
+    }
+
+    .chat-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px;
+    }
+
+    .chat-list.hidden,
+    .sidebar-footer.hidden {
+      display: none;
+    }
+
+    .chat-list-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      margin-bottom: 4px;
+    }
+
+    .chat-list-item:hover {
+      background: rgba(102, 126, 234, 0.1);
+    }
+
+    .chat-list-item.active {
+      background: rgba(102, 126, 234, 0.15);
+      border: 1px solid rgba(102, 126, 234, 0.3);
+    }
+
+    .chat-item-icon {
+      color: #667eea;
+      font-size: 20px;
+      width: 20px;
+      height: 20px;
+    }
+
+    .chat-item-content {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .chat-item-title {
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: #1a1a2e;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .chat-item-time {
+      font-size: 0.75rem;
+      color: #8888aa;
+    }
+
+    .chat-item-delete {
+      opacity: 0;
+      transition: opacity 0.2s ease;
+      color: #8888aa;
+    }
+
+    .chat-item-delete:hover {
+      color: #f5576c;
+    }
+
+    .chat-list-item:hover .chat-item-delete {
+      opacity: 1;
+    }
+
+    .no-chats {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 20px;
+      text-align: center;
+      color: #8888aa;
+    }
+
+    .no-chats mat-icon {
+      font-size: 48px;
+      width: 48px;
+      height: 48px;
+      margin-bottom: 12px;
+      opacity: 0.5;
+    }
+
+    .no-chats p {
+      margin: 0;
+      font-size: 1rem;
+      font-weight: 500;
+    }
+
+    .no-chats span {
+      font-size: 0.85rem;
+    }
+
+    .sidebar-footer {
+      padding: 12px;
+      border-top: 1px solid rgba(102, 126, 234, 0.1);
+    }
+
+    .clear-all-btn {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      color: #8888aa;
+      font-size: 0.85rem;
+    }
+
+    .clear-all-btn:hover {
+      color: #f5576c;
+      background: rgba(245, 87, 108, 0.1);
+    }
+
+    .chat-container {
+      flex: 1;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
       max-width: 1100px;
       margin: 0 auto;
       padding: 20px;
@@ -413,26 +669,78 @@ import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
     }
 
     .model-select {
-      width: 280px;
+      width: 300px;
     }
 
     .model-select ::ng-deep .mat-mdc-form-field-subscript-wrapper {
       display: none;
     }
 
+    .model-select ::ng-deep .mat-mdc-text-field-wrapper {
+      background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
+      border-radius: 14px !important;
+      border: 1px solid rgba(102, 126, 234, 0.2);
+      transition: all 0.3s ease;
+    }
+
+    .model-select ::ng-deep .mat-mdc-text-field-wrapper:hover {
+      border-color: rgba(102, 126, 234, 0.4);
+      box-shadow: 0 2px 12px rgba(102, 126, 234, 0.15);
+    }
+
+    .model-select ::ng-deep .mdc-notched-outline {
+      display: none;
+    }
+
+    .model-select ::ng-deep .mat-mdc-form-field-flex {
+      padding: 0 16px;
+    }
+
+    .model-select ::ng-deep .mat-mdc-select-trigger {
+      padding: 8px 0;
+    }
+
+    .model-select ::ng-deep .mat-mdc-select-value-text {
+      font-weight: 500;
+      color: #1a1a2e;
+    }
+
+    .model-select ::ng-deep .mat-mdc-select-arrow-wrapper {
+      transform: translateX(4px);
+    }
+
+    .model-select ::ng-deep .mat-mdc-select-arrow {
+      color: #667eea;
+    }
+
+    .model-select ::ng-deep .mat-mdc-floating-label {
+      color: #667eea !important;
+      font-weight: 500;
+    }
+
+    .model-select ::ng-deep .mat-mdc-floating-label mat-icon {
+      font-size: 18px;
+      width: 18px;
+      height: 18px;
+      margin-right: 4px;
+      vertical-align: middle;
+    }
+
     .model-option {
       display: flex;
       flex-direction: column;
       gap: 2px;
+      padding: 4px 0;
     }
 
     .model-name {
-      font-weight: 500;
+      font-weight: 600;
+      color: #1a1a2e;
     }
 
     .model-desc {
-      font-size: 0.8em;
-      color: #9ca3af;
+      font-size: 0.75em;
+      color: #8888aa;
     }
 
     .no-models-warning {
@@ -1148,7 +1456,40 @@ import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
     }
 
     /* ===== Responsive ===== */
+    @media (max-width: 1024px) {
+      .chat-sidebar {
+        width: 60px;
+      }
+      
+      .chat-sidebar .sidebar-header {
+        padding: 12px;
+      }
+
+      .chat-sidebar .new-chat-btn {
+        padding: 10px;
+      }
+
+      .chat-sidebar .new-chat-btn span,
+      .chat-sidebar .chat-list,
+      .chat-sidebar .sidebar-footer {
+        display: none;
+      }
+
+      .chat-sidebar.collapsed {
+        width: 60px;
+      }
+    }
+
     @media (max-width: 768px) {
+      .chat-layout {
+        padding: 10px;
+        gap: 10px;
+      }
+
+      .chat-sidebar {
+        display: none;
+      }
+
       .chat-container {
         padding: 12px;
       }
@@ -1199,6 +1540,11 @@ export class AIChatComponent implements OnInit, OnDestroy, AfterViewChecked {
   privacyStatus: PrivacyStatus | null = null;
   showPrivacyDetails = false;
 
+  // Chat session management
+  chatSessions: ChatSession[] = [];
+  activeChatId: string | null = null;
+  sidebarCollapsed = false;
+
   constructor(
     private aiService: AIService,
     private snackBar: MatSnackBar,
@@ -1236,6 +1582,28 @@ export class AIChatComponent implements OnInit, OnDestroy, AfterViewChecked {
 
     // Load privacy status
     this.loadPrivacyStatus();
+
+    // Subscribe to chat sessions
+    this.aiService.chatSessions$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(sessions => {
+        this.chatSessions = sessions;
+      });
+
+    // Subscribe to active chat ID
+    this.aiService.activeChatId$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(chatId => {
+        this.activeChatId = chatId;
+        // Update messages from active chat
+        this.messages = this.aiService.getActiveChatMessages();
+        this.shouldScrollToBottom = true;
+      });
+
+    // Create initial chat if none exists
+    if (this.aiService.getChatSessions().length === 0) {
+      this.createNewChat();
+    }
   }
 
   loadPrivacyStatus() {
@@ -1305,12 +1673,21 @@ export class AIChatComponent implements OnInit, OnDestroy, AfterViewChecked {
       return;
     }
 
-    // Add user message
-    this.messages.push({
+    // Create a chat if none exists
+    if (!this.activeChatId) {
+      this.createNewChat();
+    }
+
+    // Create user message
+    const userMessage: ChatMessage = {
       role: 'user',
       content: message,
       timestamp: new Date()
-    });
+    };
+
+    // Add user message to active chat
+    this.aiService.addMessageToActiveChat(userMessage);
+    this.messages = this.aiService.getActiveChatMessages();
 
     this.userInput = '';
     this.isLoading = true;
@@ -1324,12 +1701,17 @@ export class AIChatComponent implements OnInit, OnDestroy, AfterViewChecked {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (response) => {
-          this.messages.push({
+          const assistantMessage: ChatMessage = {
             role: 'assistant',
             content: response.response,
             timestamp: new Date(),
             model: response.model_used
-          });
+          };
+          
+          // Add assistant message to active chat
+          this.aiService.addMessageToActiveChat(assistantMessage);
+          this.messages = this.aiService.getActiveChatMessages();
+          
           this.isLoading = false;
           this.shouldScrollToBottom = true;
         },
@@ -1352,6 +1734,70 @@ export class AIChatComponent implements OnInit, OnDestroy, AfterViewChecked {
     } catch {
       return content;
     }
+  }
+
+  // ========================================
+  // Chat Session Management Methods
+  // ========================================
+
+  createNewChat(): void {
+    this.aiService.createNewChat();
+    this.messages = [];
+  }
+
+  switchToChat(chatId: string): void {
+    this.aiService.setActiveChat(chatId);
+  }
+
+  deleteChat(chatId: string, event: Event): void {
+    event.stopPropagation();
+    this.aiService.deleteChat(chatId);
+  }
+
+  clearAllChats(): void {
+    if (confirm('Are you sure you want to clear all chats?')) {
+      this.aiService.clearAllChats();
+      this.messages = [];
+    }
+  }
+
+  toggleSidebar(): void {
+    this.sidebarCollapsed = !this.sidebarCollapsed;
+  }
+
+  formatChatTime(date: Date | undefined): string {
+    if (!date) return '';
+    const now = new Date();
+    const chatDate = new Date(date);
+    
+    // Today
+    if (chatDate.toDateString() === now.toDateString()) {
+      return chatDate.toLocaleTimeString('en-US', { 
+        hour: 'numeric', 
+        minute: '2-digit',
+        hour12: true 
+      });
+    }
+    
+    // Yesterday
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (chatDate.toDateString() === yesterday.toDateString()) {
+      return 'Yesterday';
+    }
+    
+    // This week
+    const weekAgo = new Date(now);
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    if (chatDate > weekAgo) {
+      return chatDate.toLocaleDateString('en-US', { weekday: 'short' });
+    }
+    
+    // Older
+    return chatDate.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric' 
+    });
   }
 
   formatTime(date: Date | undefined): string {

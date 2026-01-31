@@ -674,3 +674,50 @@ body {
 .cdk-overlay-container .cdk-overlay-pane:has(.mat-datepicker-content) {
   z-index: 1100 !important;
 }
+
+/* ====================================================
+   AI MODEL SELECT DROPDOWN PANEL STYLES
+   ==================================================== */
+.model-select-panel {
+  border-radius: 16px !important;
+  border: 1px solid rgba(102, 126, 234, 0.2) !important;
+  box-shadow: 0 10px 40px rgba(102, 126, 234, 0.2), 
+              0 2px 10px rgba(0, 0, 0, 0.05) !important;
+  margin-top: 8px !important;
+  overflow: hidden !important;
+  background: #ffffff !important;
+  
+  .mat-mdc-option {
+    padding: 12px 16px !important;
+    min-height: 56px !important;
+    border-radius: 0 !important;
+    transition: all 0.2s ease !important;
+    
+    &:hover {
+      background: linear-gradient(135deg, rgba(102, 126, 234, 0.08) 0%, rgba(118, 75, 162, 0.08) 100%) !important;
+    }
+    
+    &.mat-mdc-option-active,
+    &.mdc-list-item--selected {
+      background: linear-gradient(135deg, rgba(102, 126, 234, 0.12) 0%, rgba(118, 75, 162, 0.12) 100%) !important;
+      
+      .mdc-list-item__primary-text {
+        color: #667eea !important;
+      }
+    }
+  }
+  
+  .mat-mdc-optgroup {
+    .mat-mdc-optgroup-label {
+      font-size: 0.7rem !important;
+      font-weight: 700 !important;
+      letter-spacing: 0.5px !important;
+      text-transform: uppercase !important;
+      color: #667eea !important;
+      padding: 12px 16px 8px !important;
+      background: linear-gradient(135deg, rgba(102, 126, 234, 0.03) 0%, rgba(118, 75, 162, 0.03) 100%) !important;
+      border-bottom: 1px solid rgba(102, 126, 234, 0.1) !important;
+      min-height: auto !important;
+    }
+  }
+}
