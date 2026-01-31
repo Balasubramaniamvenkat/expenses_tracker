@@ -15,12 +15,13 @@ A privacy-first personal finance management application designed to help familie
 | Feature | Description |
 |---------|-------------|
 | 📤 **Smart Upload** | Drag & drop CSV upload with automatic parsing |
-| 🏷️ **Auto-Categorization** | ML-ready categorization with user learning |
-| 📊 **Analytics Dashboard** | Interactive charts showing spending patterns |
+| 🏷️ **Smart Categorization** | Merchant database + personal name detection for accurate categorization |
+| 📊 **Drill-Down Dashboard** | Interactive charts with click-to-drill-down into subcategories |
+| 🛒 **Indian Merchant Database** | 500+ pre-configured Indian merchants for accurate categorization |
 | 🤖 **AI Chat** | Ask questions about your finances using multiple LLM providers |
 | 🔒 **Privacy-First** | All data processed locally - nothing leaves your machine |
-| �️ **PII Protection** | Personal names, phone numbers, and account details are automatically masked before AI processing |
-| �📱 **Responsive UI** | Material Design that works on desktop and mobile |
+| 🛡️ **PII Protection** | Personal names, phone numbers, and account details are automatically masked before AI processing |
+| 📱 **Responsive UI** | Material Design that works on desktop and mobile |
 
 ## 🏗️ Architecture
 
@@ -80,10 +81,13 @@ simple_finance_tracker/
 │   │   ├── transactions.py    # Transaction queries
 │   │   ├── dashboard.py       # Analytics endpoints
 │   │   ├── categories.py      # Category management
+│   │   ├── categories_hierarchy.py  # Hierarchical category API
 │   │   └── ai_chat.py         # AI chat integration
 │   ├── SRC/                    # Core processing modules
 │   │   ├── data_extraction.py # CSV parsing
-│   │   ├── categories.py      # Categorization logic
+│   │   ├── categories.py      # Category manager
+│   │   ├── refined_categories.py  # Smart categorization engine
+│   │   ├── merchant_database.json # 500+ Indian merchants
 │   │   ├── analysis.py        # Financial analytics
 │   │   └── pii_sanitizer.py   # PII detection & masking
 │   └── requirements.txt
@@ -95,7 +99,7 @@ simple_finance_tracker/
 │       │   ├── categories/    # Category management
 │       │   └── ai-insights/   # AI chat interface
 │       └── pages/
-│           └── dashboard/     # Main dashboard
+│           └── dashboard/     # Enhanced drill-down dashboard
 ├── inputs/                     # Upload directory
 └── synthetic_data/            # Test data generator
 ```
@@ -109,6 +113,7 @@ simple_finance_tracker/
 | `/api/transactions/summary` | GET | Transaction summary statistics |
 | `/api/dashboard/summary` | GET | Dashboard analytics |
 | `/api/categories/analytics` | GET | Category breakdown |
+| `/api/categories/hierarchy` | GET | Hierarchical category data for drill-down |
 | `/api/ai/chat` | POST | AI chat interaction |
 | `/api/ai/models` | GET | Available AI models |
 
@@ -153,17 +158,25 @@ The application supports multiple LLM providers through LangChain:
 
 ## 🚧 Development Roadmap
 
-### Phase 1 (Current) ✅
+### Phase 1 ✅
 - [x] CSV upload and parsing
 - [x] Basic transaction categorization
 - [x] Dashboard with charts
 - [x] AI chat integration
 
-### Phase 2 (Planned)
-- [ ] Enhanced category learning
-- [ ] Budget tracking
+### Phase 2 ✅
+- [x] Enhanced categorization with merchant database
+- [x] Personal name auto-detection
+- [x] Drill-down dashboard with subcategory views
+- [x] Modern UI enhancements (styled dropdowns)
+- [x] Indian merchant database (500+ merchants)
+
+### Phase 3 (Planned)
+- [ ] Budget tracking & alerts
 - [ ] Recurring transaction detection
-- [ ] Export reports
+- [ ] Export reports (PDF/Excel)
+- [ ] Multi-bank support
+- [ ] Family member expense tracking
 
 ## 📄 Documentation
 
