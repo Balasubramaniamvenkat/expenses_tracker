@@ -28,6 +28,20 @@ export interface ChatResponse {
   timestamp: string;
 }
 
+export interface PrivacyProtection {
+  type: string;
+  description: string;
+  count: number;
+  icon: string;
+}
+
+export interface PrivacyStatus {
+  privacy_enabled: boolean;
+  protection_measures: PrivacyProtection[];
+  total_items_protected: number;
+  message: string;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -85,6 +99,10 @@ export class AIService {
 
   getQuickQuestions(): Observable<{ questions: string[] }> {
     return this.http.get<{ questions: string[] }>(`${this.apiUrl}/quick-questions`);
+  }
+
+  getPrivacyStatus(): Observable<PrivacyStatus> {
+    return this.http.get<PrivacyStatus>(`${this.apiUrl}/privacy-status`);
   }
 
   getHealth(): Observable<any> {

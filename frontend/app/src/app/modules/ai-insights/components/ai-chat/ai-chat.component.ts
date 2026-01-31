@@ -12,7 +12,7 @@ import { MatChipsModule } from '@angular/material/chips';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { Subject, takeUntil } from 'rxjs';
-import { AIService, AIModel, ChatMessage } from '../../services/ai.service';
+import { AIService, AIModel, ChatMessage, PrivacyStatus } from '../../services/ai.service';
 import { marked } from 'marked';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 
@@ -83,6 +83,38 @@ import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
             </div>
             
             <mat-spinner diameter="24" *ngIf="isLoadingModels"></mat-spinner>
+
+            <!-- Privacy Shield Indicator -->
+            <button class="privacy-shield-btn" 
+                    (click)="showPrivacyDetails = !showPrivacyDetails"
+                    [matTooltip]="privacyStatus?.message || 'Privacy protection active'">
+              <mat-icon class="shield-icon">verified_user</mat-icon>
+              <span class="shield-text">PII Protected</span>
+            </button>
+          </div>
+
+          <!-- Privacy Details Panel -->
+          <div class="privacy-details-panel" *ngIf="showPrivacyDetails && privacyStatus">
+            <div class="privacy-header">
+              <mat-icon>shield</mat-icon>
+              <span>Privacy Protection Active</span>
+              <button mat-icon-button (click)="showPrivacyDetails = false">
+                <mat-icon>close</mat-icon>
+              </button>
+            </div>
+            <p class="privacy-message">{{ privacyStatus.message }}</p>
+            <div class="protection-list" *ngIf="privacyStatus && privacyStatus.protection_measures && privacyStatus.protection_measures.length > 0">
+              <div class="protection-item" *ngFor="let measure of privacyStatus.protection_measures">
+                <mat-icon>{{ measure.icon }}</mat-icon>
+                <div class="protection-info">
+                  <span class="protection-type">{{ measure.description }}</span>
+                  <span class="protection-count" *ngIf="measure.count > 0">{{ measure.count }} items masked</span>
+                </div>
+              </div>
+            </div>
+            <div class="protection-total" *ngIf="privacyStatus && privacyStatus.total_items_protected > 0">
+              <strong>Total protected:</strong> {{ privacyStatus.total_items_protected }} personal data items
+            </div>
           </div>
         </div>
 
@@ -412,6 +444,128 @@ import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
       padding: 10px 16px;
       border-radius: 12px;
       font-size: 0.9rem;
+    }
+
+    /* ===== Privacy Shield Button ===== */
+    .privacy-shield-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: white;
+      border: none;
+      padding: 8px 14px;
+      border-radius: 20px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 500;
+      transition: all 0.3s ease;
+      box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+    }
+
+    .privacy-shield-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+    }
+
+    .privacy-shield-btn .shield-icon {
+      font-size: 18px;
+      width: 18px;
+      height: 18px;
+    }
+
+    .privacy-shield-btn .shield-text {
+      white-space: nowrap;
+    }
+
+    /* ===== Privacy Details Panel ===== */
+    .privacy-details-panel {
+      background: linear-gradient(135deg, #f0fdf4, #ecfdf5);
+      border: 1px solid #86efac;
+      border-radius: 16px;
+      padding: 16px;
+      margin: 12px 24px;
+      animation: slideDown 0.3s ease-out;
+    }
+
+    @keyframes slideDown {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .privacy-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+      color: #166534;
+      font-weight: 600;
+      font-size: 1rem;
+    }
+
+    .privacy-header mat-icon {
+      color: #10b981;
+    }
+
+    .privacy-header button {
+      margin-left: auto;
+    }
+
+    .privacy-message {
+      color: #166534;
+      margin: 0 0 12px 0;
+      font-size: 0.9rem;
+      line-height: 1.5;
+    }
+
+    .protection-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .protection-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      background: white;
+      padding: 10px 14px;
+      border-radius: 10px;
+      border: 1px solid #d1fae5;
+    }
+
+    .protection-item mat-icon {
+      color: #10b981;
+      font-size: 20px;
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .protection-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .protection-type {
+      font-size: 0.9rem;
+      color: #374151;
+    }
+
+    .protection-count {
+      font-size: 0.8rem;
+      color: #059669;
+      font-weight: 500;
+    }
+
+    .protection-total {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid #d1fae5;
+      font-size: 0.9rem;
+      color: #166534;
     }
 
     /* ===== Messages Section ===== */
@@ -1041,6 +1195,10 @@ export class AIChatComponent implements OnInit, OnDestroy, AfterViewChecked {
   isLoadingModels = true;
   private shouldScrollToBottom = false;
 
+  // Privacy protection status
+  privacyStatus: PrivacyStatus | null = null;
+  showPrivacyDetails = false;
+
   constructor(
     private aiService: AIService,
     private snackBar: MatSnackBar,
@@ -1073,6 +1231,29 @@ export class AIChatComponent implements OnInit, OnDestroy, AfterViewChecked {
         },
         error: (err) => {
           console.error('Failed to load quick questions:', err);
+        }
+      });
+
+    // Load privacy status
+    this.loadPrivacyStatus();
+  }
+
+  loadPrivacyStatus() {
+    this.aiService.getPrivacyStatus()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (status) => {
+          this.privacyStatus = status;
+        },
+        error: (err) => {
+          console.error('Failed to load privacy status:', err);
+          // Set default privacy status
+          this.privacyStatus = {
+            privacy_enabled: true,
+            protection_measures: [],
+            total_items_protected: 0,
+            message: 'Privacy protection is enabled.'
+          };
         }
       });
   }

@@ -15,10 +15,16 @@ from typing import List, Optional, Dict, Any
 import os
 import pandas as pd
 from datetime import datetime
+from typing import Tuple, Dict, Any
 
 # Load environment variables
 from dotenv import load_dotenv
 load_dotenv()
+
+# PII Sanitization
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'SRC'))
+from pii_sanitizer import PIISanitizer, sanitize_for_ai_context  # type: ignore
 
 # LangChain imports
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
@@ -171,8 +177,14 @@ def get_provider_from_model(model_id: str) -> str:
                 return provider_key
     return None
 
-def get_transaction_context() -> str:
-    """Load transaction data and create context for AI"""
+def get_transaction_context() -> tuple:
+    """
+    Load transaction data and create context for AI.
+    Returns sanitized context with PII removed for privacy.
+    
+    Returns:
+        tuple: (context_string, pii_summary_dict)
+    """
     try:
         # Find processed_data.csv
         possible_paths = [
@@ -190,12 +202,25 @@ def get_transaction_context() -> str:
                 break
         
         if not csv_path:
-            return "No transaction data available. Please upload a bank statement first."
+            return "No transaction data available. Please upload a bank statement first.", {}
         
         print(f"📊 Loading transaction data from: {csv_path}")
         
         # Load and process the data
         df = pd.read_csv(csv_path)
+        
+        # ========================================
+        # PII SANITIZATION - Protect user privacy
+        # ========================================
+        print("🔒 Sanitizing PII from transaction data...")
+        sanitizer = PIISanitizer()
+        df = sanitizer.sanitize_dataframe(df, description_column='Description')
+        pii_summary = sanitizer.get_sanitization_summary()
+        print(f"✅ PII Sanitization complete: {pii_summary['total_pii_masked']} items masked")
+        print(f"   - Phone numbers: {pii_summary['breakdown']['phone_numbers']}")
+        print(f"   - Account numbers: {pii_summary['breakdown']['account_numbers']}")
+        print(f"   - Personal names: {pii_summary['breakdown']['personal_names']}")
+        print(f"   - UPI IDs: {pii_summary['breakdown']['upi_ids']}")
         
         # Calculate summary statistics
         df['Amount'] = pd.to_numeric(df['Amount'], errors='coerce')
@@ -239,21 +264,36 @@ TOP SPENDING MERCHANTS:
 
 RECENT TRANSACTIONS (Last 30):
 {df.tail(30)[['Transaction Date', 'Description', 'Amount', 'Category']].to_string(index=False)}
+
+NOTE: Personal names, phone numbers, and account numbers have been anonymized for privacy.
 """
-        return context
+        return context, pii_summary
         
     except Exception as e:
         print(f"❌ Error loading transaction data: {e}")
-        return f"Error loading transaction data: {str(e)}"
+        return f"Error loading transaction data: {str(e)}", {}
 
-def build_chat_messages(user_message: str, context: str, history: List[ChatMessage]) -> List:
+def build_chat_messages(user_message: str, context: str, history: Optional[List[ChatMessage]] = None, pii_summary: Optional[Dict[str, Any]] = None) -> List:
     """Build LangChain message list from user input and history"""
+    
+    if history is None:
+        history = []
+    
+    privacy_note = ""
+    if pii_summary and pii_summary.get('total_pii_masked', 0) > 0:
+        privacy_note = f"""
+
+PRIVACY NOTICE: This data has been sanitized to protect user privacy.
+- {pii_summary['breakdown'].get('personal_names', 0)} personal names replaced with placeholders like [PAYEE], [ACCOUNT_HOLDER]
+- {pii_summary['breakdown'].get('phone_numbers', 0)} phone numbers partially masked
+- {pii_summary['breakdown'].get('account_numbers', 0)} account numbers partially masked
+When referring to transactions, use the category and merchant type rather than personal identifiers."""
     
     system_prompt = f"""You are a helpful financial assistant analyzing the user's bank transaction data.
 Use the following financial data context to answer questions accurately.
 Always format currency in Indian Rupees (₹) with proper comma separators.
 Be concise but informative. Use tables and bullet points for clarity.
-If asked about specific transactions, search through the data provided.
+If asked about specific transactions, search through the data provided.{privacy_note}
 
 {context}"""
     
@@ -346,11 +386,11 @@ async def chat_with_ai(request: ChatRequest):
         )
     
     try:
-        # Get transaction context
-        context = get_transaction_context()
+        # Get transaction context (sanitized for privacy)
+        context, pii_summary = get_transaction_context()
         
         # Build messages using LangChain message types
-        messages = build_chat_messages(request.message, context, request.history)
+        messages = build_chat_messages(request.message, context, request.history, pii_summary)
         
         # Get the LLM instance (works the same for any provider!)
         llm = get_llm(request.model_id)
@@ -399,3 +439,53 @@ async def get_quick_questions():
             "Summarize my financial health"
         ]
     }
+
+
+@router.get("/privacy-status")
+async def get_privacy_status():
+    """
+    Get the current privacy protection status.
+    Shows what PII protection measures are active.
+    """
+    # Get a sample sanitization to show what's being protected
+    try:
+        context, pii_summary = get_transaction_context()
+        
+        return {
+            "privacy_enabled": True,
+            "protection_measures": [
+                {
+                    "type": "personal_names",
+                    "description": "Personal names replaced with [PAYEE], [ACCOUNT_HOLDER]",
+                    "count": pii_summary.get('breakdown', {}).get('personal_names', 0),
+                    "icon": "person_off"
+                },
+                {
+                    "type": "phone_numbers",
+                    "description": "Phone numbers partially masked (e.g., XXXXX43210)",
+                    "count": pii_summary.get('breakdown', {}).get('phone_numbers', 0),
+                    "icon": "phone_disabled"
+                },
+                {
+                    "type": "account_numbers",
+                    "description": "Account/reference numbers partially masked",
+                    "count": pii_summary.get('breakdown', {}).get('account_numbers', 0),
+                    "icon": "credit_card_off"
+                },
+                {
+                    "type": "upi_ids",
+                    "description": "UPI IDs masked (e.g., us***er@bank)",
+                    "count": pii_summary.get('breakdown', {}).get('upi_ids', 0),
+                    "icon": "lock"
+                }
+            ],
+            "total_items_protected": pii_summary.get('total_pii_masked', 0),
+            "message": "Your personal information is protected. Only anonymized financial data is shared with AI."
+        }
+    except Exception as e:
+        return {
+            "privacy_enabled": True,
+            "protection_measures": [],
+            "total_items_protected": 0,
+            "message": "Privacy protection is enabled. Upload data to see protection details."
+        }
