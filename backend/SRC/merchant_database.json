@@ -1,0 +1,357 @@
+{
+  "_description": "Known merchant database for India - used for accurate categorization",
+  "_version": "1.0.0",
+  "_last_updated": "2026-01-31",
+  
+  "jewelry_shops": {
+    "category": "Investments",
+    "subcategory": "Gold & Jewelry",
+    "merchants": [
+      "tanishq", "kalyan jewellers", "kalyan gold", "joyalukkas", "grt jewellers",
+      "grt gold", "bhima jewellers", "bhima gold", "malabar gold", "malabar jewellers",
+      "pc jeweller", "senco gold", "tribhovandas bhimji", "tbz", "png jewellers",
+      "waman hari pethe", "josco jewellers", "jos alukkas", "chemmanur jewellers",
+      "thangamayil", "khazana jewellers", "jewel one", "nikkamal jewellers",
+      "lalithaa jewellery", "nac jewellers", "vbj jewellers", "vaibhav jewellers",
+      "jewel box", "reliance jewels", "caratlane", "bluestone", "melorra",
+      "candere", "orra", "swarovski", "sia art jewellery", "qudera",
+      "gehna jewellers", "amrapali", "qudera", "qudera gold"
+    ]
+  },
+  
+  "hospitals": {
+    "category": "Healthcare",
+    "subcategory": "Hospital",
+    "merchants": [
+      "apollo hospital", "apollo clinic", "fortis hospital", "fortis healthcare",
+      "max hospital", "max healthcare", "manipal hospital", "narayana health",
+      "narayana hrudayalaya", "medanta", "aster hospital", "columbia asia",
+      "aiims", "kokilaben hospital", "lilavati hospital", "hinduja hospital",
+      "breach candy hospital", "jaslok hospital", "tata memorial", "amrita hospital",
+      "care hospital", "yashoda hospital", "kims hospital", "rainbow hospital",
+      "cloudnine hospital", "motherhood hospital", "sakra hospital", "sparsh hospital",
+      "bgr hospital", "artemis hospital", "paras hospital", "saroj hospital",
+      "blk hospital", "sir ganga ram hospital", "primus hospital"
+    ]
+  },
+  
+  "clinics": {
+    "category": "Healthcare",
+    "subcategory": "Clinic & Doctor",
+    "merchants": [
+      "practo", "docsapp", "lybrate", "portea", "1mg clinic", "apollo clinic",
+      "aster clinic", "healthspring", "family health clinic", "wellness clinic"
+    ]
+  },
+  
+  "pharmacies": {
+    "category": "Healthcare",
+    "subcategory": "Pharmacy",
+    "merchants": [
+      "medplus", "apollo pharmacy", "netmeds", "1mg", "pharmeasy", "medlife",
+      "wellness forever", "frank ross", "guardian pharmacy", "noble plus",
+      "generico", "dawai", "truemeds", "sastasundar", "healthmug"
+    ]
+  },
+  
+  "diagnostic_labs": {
+    "category": "Healthcare",
+    "subcategory": "Diagnostic & Labs",
+    "merchants": [
+      "thyrocare", "lal path labs", "lal pathlabs", "dr lal path", "srl diagnostics",
+      "metropolis", "quest diagnostics", "suburban diagnostics", "neuberg",
+      "vijaya diagnostic", "redcliffe labs", "orange health", "healthians",
+      "igenetic", "niramaya", "tenet diagnostics", "mahajan imaging",
+      "krsnaa diagnostics", "medall", "suraksha diagnostic"
+    ]
+  },
+  
+  "insurance_companies": {
+    "category": "Insurance",
+    "subcategory": "Life Insurance",
+    "merchants": [
+      "lic of india", "lic premium", "hdfc life", "icici prudential", "icici pru",
+      "sbi life", "max life", "bajaj allianz life", "tata aia", "kotak life",
+      "aditya birla sun life", "pnb metlife", "canara hsbc", "exide life",
+      "aegon life", "aviva life", "bharti axa life", "edelweiss tokio",
+      "future generali life", "shriram life", "star union dai ichi"
+    ]
+  },
+  
+  "health_insurance": {
+    "category": "Insurance",
+    "subcategory": "Health Insurance",
+    "merchants": [
+      "star health", "max bupa", "care health", "niva bupa", "aditya birla health",
+      "hdfc ergo health", "icici lombard health", "new india assurance",
+      "united india insurance", "oriental insurance", "national insurance",
+      "religare health", "apollo munich", "manipal cigna"
+    ]
+  },
+  
+  "vehicle_insurance": {
+    "category": "Insurance",
+    "subcategory": "Vehicle Insurance",
+    "merchants": [
+      "acko", "digit insurance", "hdfc ergo", "icici lombard", "bajaj allianz",
+      "tata aig", "new india assurance motor", "united india motor",
+      "royal sundaram", "iffco tokio", "reliance general", "future generali",
+      "liberty general", "liberty insurance"
+    ]
+  },
+  
+  "stock_brokers": {
+    "category": "Investments",
+    "subcategory": "Stocks & Trading",
+    "merchants": [
+      "zerodha", "groww", "upstox", "angel one", "angel broking", "5paisa",
+      "sharekhan", "iifl securities", "kotak securities", "hdfc securities",
+      "icici direct", "axis direct", "motilal oswal", "geojit", "edelweiss",
+      "alice blue", "fyers", "samco", "trustline", "karvy",
+      "sbi securities", "sbicap securities", "religare", "indiabulls"
+    ]
+  },
+  
+  "mutual_funds": {
+    "category": "Investments",
+    "subcategory": "Mutual Funds & SIP",
+    "merchants": [
+      "hdfc amc", "hdfc mutual fund", "icici prudential mf", "sbi mutual fund",
+      "axis mutual fund", "kotak mutual fund", "nippon india mf", "dsp mutual fund",
+      "aditya birla sun life mf", "tata mutual fund", "uti mutual fund",
+      "franklin templeton", "mirae asset", "parag parikh", "ppfas",
+      "edelweiss mf", "invesco", "sundaram mf", "l&t mf", "idfc mf",
+      "boi axa mf", "canara robeco", "union mf", "pgim india mf",
+      "quant mf", "motilal oswal mf", "lic mf", "mahindra mf"
+    ]
+  },
+  
+  "schools": {
+    "category": "Education",
+    "subcategory": "School Fees",
+    "merchants": [
+      "dav school", "dps", "delhi public school", "kendriya vidyalaya", "kv",
+      "jawahar navodaya", "ryan international", "vibgyor", "euro school",
+      "podar", "sboa school", "velammal", "psbb", "don bosco", "st josephs",
+      "st xaviers", "la martiniere", "bishop cotton", "national public school",
+      "baldwins", "the valley school", "inventure academy", "greenwood high",
+      "orchid school", "kidzee", "eurokids", "shemrock", "bachpan",
+      "ncfe", "national center for excellence", "national centre for excellence"
+    ]
+  },
+  
+  "colleges_universities": {
+    "category": "Education",
+    "subcategory": "College & University",
+    "merchants": [
+      "iit", "iim", "nit", "bits pilani", "vit", "manipal university",
+      "amity university", "lovely professional", "christ university",
+      "symbiosis", "nift", "nid", "srm university", "anna university",
+      "jnu", "du", "delhi university", "mumbai university", "pune university",
+      "ignou", "nmims", "xlri", "iift", "mdi gurgaon", "sp jain", "jbims",
+      "rvce", "rv college", "pesit", "bms college", "msrit", "msramaiah",
+      "dayananda sagar", "mit", "cet", "uvce", "jss", "nie", "sit"
+    ]
+  },
+  
+  "engineering_colleges": {
+    "category": "Education",
+    "subcategory": "College & University",
+    "_patterns": "Matches any institution with 'institute of technology' or 'engineering college' in name",
+    "merchants": [
+      "institute of technology", "engineering college", "college of engineering",
+      "technical institute", "polytechnic", "iiit"
+    ]
+  },
+  
+  "coaching_centers": {
+    "category": "Education",
+    "subcategory": "Coaching & Tuition",
+    "merchants": [
+      "byjus", "byju", "unacademy", "vedantu", "toppr", "aakash", "allen",
+      "allen career", "allen coaching", "allen institute",
+      "fiitjee", "resonance", "bansal classes", "vidyamandir", "narayana",
+      "sri chaitanya", "physics wallah", "whitehat jr", "coding ninjas",
+      "scaler", "cuemath", "lido learning", "doubtnut", "extramarks",
+      "t.i.m.e", "time coaching", "career launcher", "ims", "endeavor"
+    ]
+  },
+  
+  "online_courses": {
+    "category": "Education",
+    "subcategory": "Training & Courses",
+    "merchants": [
+      "udemy", "coursera", "linkedin learning", "skillshare", "upgrad",
+      "simplilearn", "great learning", "edureka", "intellipaat", "jigsaw",
+      "imarticus", "emeritus", "talentedge", "eruditus", "springboard"
+    ]
+  },
+  
+  "food_delivery": {
+    "category": "Food & Dining",
+    "subcategory": "Food Delivery",
+    "merchants": [
+      "swiggy", "zomato", "uber eats", "dunzo", "faasos", "box8",
+      "behrouz", "eatfit", "freshmenu", "licious", "bigbasket daily"
+    ]
+  },
+  
+  "grocery_stores": {
+    "category": "Food & Dining",
+    "subcategory": "Groceries",
+    "merchants": [
+      "bigbasket", "blinkit", "grofers", "jiomart", "amazon fresh",
+      "nature basket", "dmart", "more supermarket", "reliance fresh",
+      "spencer", "star bazaar", "nilgiris", "foodhall", "hypercity",
+      "ratnadeep", "heritage fresh", "easyday", "spar"
+    ]
+  },
+  
+  "restaurants_cafes": {
+    "category": "Food & Dining",
+    "subcategory": "Restaurants",
+    "merchants": [
+      "dominos", "pizza hut", "mcdonalds", "kfc", "subway", "burger king",
+      "taco bell", "starbucks", "cafe coffee day", "ccd", "barista",
+      "barbeque nation", "mainland china", "absolute barbecue", "ab's",
+      "paradise biryani", "haldiram", "bikanervala", "sagar ratna",
+      "saravana bhavan", "mtr", "adyar ananda bhavan", "a2b", "sangeetha"
+    ]
+  },
+  
+  "online_shopping": {
+    "category": "Shopping",
+    "subcategory": "Online Shopping",
+    "merchants": [
+      "amazon", "flipkart", "myntra", "ajio", "meesho", "snapdeal",
+      "tatacliq", "nykaa", "purplle", "mamaearth", "firstcry", "hopscotch",
+      "shopclues", "paytm mall", "pepperfry", "urban ladder", "fabindia"
+    ]
+  },
+  
+  "electronics_stores": {
+    "category": "Shopping",
+    "subcategory": "Electronics",
+    "merchants": [
+      "croma", "reliance digital", "vijay sales", "samsung store", "mi store",
+      "apple store", "oneplus store", "poorvika", "sangeetha mobiles",
+      "lot mobiles", "big c mobiles"
+    ]
+  },
+  
+  "clothing_stores": {
+    "category": "Shopping",
+    "subcategory": "Clothing & Fashion",
+    "merchants": [
+      "max fashion", "lifestyle", "pantaloons", "westside", "shoppers stop",
+      "central", "brand factory", "reliance trends", "v mart", "fbb",
+      "raymond", "peter england", "louis philippe", "van heusen", "allen solly",
+      "zara", "h&m", "levis", "pepe jeans", "being human"
+    ]
+  },
+  
+  "taxi_rideshare": {
+    "category": "Transportation",
+    "subcategory": "Taxi & Rideshare",
+    "merchants": [
+      "uber", "ola", "rapido", "meru cabs", "mega cabs", "easy cabs",
+      "fasttrack", "savaari", "gozo cabs", "blu smart"
+    ]
+  },
+  
+  "petrol_pumps": {
+    "category": "Transportation",
+    "subcategory": "Fuel",
+    "merchants": [
+      "indian oil", "iocl", "bharat petroleum", "bpcl", "hindustan petroleum",
+      "hpcl", "hp petrol", "shell", "reliance petrol", "nayara energy",
+      "essar petrol"
+    ]
+  },
+  
+  "travel_booking": {
+    "category": "Transportation",
+    "subcategory": "Travel & Booking",
+    "merchants": [
+      "makemytrip", "goibibo", "cleartrip", "yatra", "ixigo", "easemytrip",
+      "redbus", "abhibus", "via", "air india", "indigo", "spicejet",
+      "vistara", "akasa air", "air asia", "go first"
+    ]
+  },
+  
+  "electricity_providers": {
+    "category": "Utilities",
+    "subcategory": "Electricity",
+    "merchants": [
+      "bescom", "bses", "tata power", "adani electricity", "reliance energy",
+      "msedcl", "tneb", "tangedco", "wbsedcl", "uppcl", "kseb", "cesc",
+      "torrent power", "calcutta electric", "meghalaya energy"
+    ]
+  },
+  
+  "telecom_providers": {
+    "category": "Utilities",
+    "subcategory": "Mobile & Phone",
+    "merchants": [
+      "airtel", "jio", "vodafone", "vi", "bsnl", "mtnl", "tata teleservices"
+    ]
+  },
+  
+  "internet_providers": {
+    "category": "Utilities",
+    "subcategory": "Internet & Broadband",
+    "merchants": [
+      "act fibernet", "jio fiber", "airtel xstream", "hathway", "tikona",
+      "you broadband", "excitel", "tata sky broadband", "spectra", "den",
+      "alliance broadband", "asianet", "bsnl broadband"
+    ]
+  },
+  
+  "gas_providers": {
+    "category": "Utilities",
+    "subcategory": "Gas & LPG",
+    "merchants": [
+      "indane", "bharat gas", "hp gas", "igl", "mahanagar gas", "mgl",
+      "adani gas", "gail gas", "gujarat gas", "sabarmati gas"
+    ]
+  },
+  
+  "streaming_services": {
+    "category": "Entertainment",
+    "subcategory": "Streaming Services",
+    "merchants": [
+      "netflix", "amazon prime", "hotstar", "disney plus", "sony liv",
+      "zee5", "voot", "jio cinema", "mx player", "alt balaji", "eros now",
+      "spotify", "gaana", "wynk", "jiosaavn", "amazon music", "apple music",
+      "youtube premium", "youtube music"
+    ]
+  },
+  
+  "movie_theatres": {
+    "category": "Entertainment",
+    "subcategory": "Movies & Theatre",
+    "merchants": [
+      "pvr", "inox", "cinepolis", "carnival", "srs", "miraj", "fun cinemas",
+      "bookmyshow", "paytm movies", "paytm insider"
+    ]
+  },
+  
+  "fitness_wellness": {
+    "category": "Healthcare",
+    "subcategory": "Wellness & Fitness",
+    "merchants": [
+      "cult fit", "gold gym", "anytime fitness", "fitness first", "talwalkars",
+      "snap fitness", "crossfit", "yoga house", "the yoga institute",
+      "body art fitness", "o2 gym"
+    ]
+  },
+  
+  "home_services": {
+    "category": "Housing",
+    "subcategory": "Home Services",
+    "merchants": [
+      "urban company", "urbanclap", "housejoy", "zimmber", "bro4u",
+      "mr right", "yes madam", "helping hands"
+    ]
+  }
+}

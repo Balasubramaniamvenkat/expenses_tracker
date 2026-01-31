@@ -129,6 +129,14 @@ try:
 except ImportError as e:
     print(f"⚠ dashboard router not available: {e}")
 
+# Try to import categories hierarchy router for drill-down support
+categories_hierarchy_router = None
+try:
+    from .categories_hierarchy import router as categories_hierarchy_router
+    print("✓ Included categories hierarchy router (drill-down support)")
+except ImportError as e:
+    print(f"⚠ categories hierarchy router not available: {e}")
+
 # Try to import AI chat router
 ai_router = None
 try:
@@ -139,6 +147,11 @@ except ImportError as e:
 
 # Include the categories router (already has correct prefix)
 app.include_router(categories_router)
+
+# Include categories hierarchy router for drill-down charts
+if categories_hierarchy_router:
+    app.include_router(categories_hierarchy_router)
+    print("✓ Categories Hierarchy API available at /api/categories/hierarchy")
 
 # Include dashboard router
 if dashboard_router:

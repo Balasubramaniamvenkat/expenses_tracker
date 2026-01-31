@@ -12,6 +12,10 @@ export const routes: Routes = [
   },
   {
     path: 'dashboard',
+    loadComponent: () => import('./pages/dashboard/dashboard-enhanced.component').then(m => m.DashboardEnhancedComponent)
+  },
+  {
+    path: 'dashboard-old',
     loadComponent: () => import('./pages/dashboard/dashboard.component').then(m => m.DashboardComponent)
   },
   {

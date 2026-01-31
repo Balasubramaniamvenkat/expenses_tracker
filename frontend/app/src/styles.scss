@@ -721,3 +721,58 @@ body {
     }
   }
 }
+
+/* ====================================================
+   STYLED DATE RANGE DROPDOWN PANEL
+   ==================================================== */
+.styled-dropdown-panel {
+  margin-top: 8px !important;
+  border-radius: 12px !important;
+  overflow: hidden !important;
+  box-shadow: 0 10px 40px rgba(102, 126, 234, 0.25) !important;
+  border: 1px solid rgba(102, 126, 234, 0.15) !important;
+  
+  .mat-mdc-option {
+    padding: 12px 16px !important;
+    min-height: 48px !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    transition: all 0.2s ease !important;
+    
+    .mat-icon.option-icon {
+      font-size: 20px !important;
+      width: 20px !important;
+      height: 20px !important;
+      margin-right: 12px !important;
+      color: #667eea !important;
+      vertical-align: middle !important;
+    }
+    
+    &:hover {
+      background: linear-gradient(135deg, rgba(102, 126, 234, 0.08) 0%, rgba(118, 75, 162, 0.08) 100%) !important;
+      padding-left: 20px !important;
+    }
+    
+    &.mat-mdc-option-active,
+    &.mdc-list-item--selected {
+      background: linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.15) 100%) !important;
+      
+      .mdc-list-item__primary-text {
+        color: #667eea !important;
+        font-weight: 600 !important;
+      }
+      
+      .mat-icon.option-icon {
+        color: #764ba2 !important;
+      }
+      
+      &::after {
+        content: '✓';
+        position: absolute;
+        right: 16px;
+        color: #667eea;
+        font-weight: bold;
+      }
+    }
+  }
+}

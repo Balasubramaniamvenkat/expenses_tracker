@@ -1,0 +1,340 @@
+<div class="dashboard-container">
+  <!-- Header with Date Range Picker -->
+  <div class="dashboard-header">
+    <div class="header-content">
+      <h1>
+        <mat-icon>dashboard</mat-icon>
+        Financial Dashboard
+      </h1>
+      <p class="subtitle" *ngIf="summary">
+        {{ summary.dateRange.from | date:'MMM yyyy' }} - {{ summary.dateRange.to | date:'MMM yyyy' }}
+      </p>
+    </div>
+    
+    <div class="header-actions">
+      <!-- Date Range Selector -->
+      <div class="date-range-wrapper">
+        <mat-icon class="date-range-icon">calendar_today</mat-icon>
+        <mat-form-field appearance="outline" class="date-range-select">
+          <mat-select [(value)]="selectedDateRange" (selectionChange)="onDateRangeChange()" panelClass="styled-dropdown-panel">
+            <mat-select-trigger>
+              <span class="selected-value">{{ getSelectedDateRangeLabel() }}</span>
+            </mat-select-trigger>
+            <mat-option *ngFor="let option of dateRangeOptions" [value]="option.value">
+              <mat-icon class="option-icon">{{ getDateRangeIcon(option.value) }}</mat-icon>
+              {{ option.label }}
+            </mat-option>
+          </mat-select>
+        </mat-form-field>
+      </div>
+      
+      <!-- Custom Date Range -->
+      <div class="custom-date-range" *ngIf="selectedDateRange === 'custom'">
+        <mat-form-field appearance="outline">
+          <mat-label>Start Date</mat-label>
+          <input matInput [matDatepicker]="startPicker" [(ngModel)]="customStartDate">
+          <mat-datepicker-toggle matSuffix [for]="startPicker"></mat-datepicker-toggle>
+          <mat-datepicker #startPicker></mat-datepicker>
+        </mat-form-field>
+        
+        <mat-form-field appearance="outline">
+          <mat-label>End Date</mat-label>
+          <input matInput [matDatepicker]="endPicker" [(ngModel)]="customEndDate">
+          <mat-datepicker-toggle matSuffix [for]="endPicker"></mat-datepicker-toggle>
+          <mat-datepicker #endPicker></mat-datepicker>
+        </mat-form-field>
+        
+        <button mat-raised-button color="primary" (click)="applyCustomDateRange()">
+          Apply
+        </button>
+      </div>
+      
+      <button mat-raised-button color="primary" routerLink="/upload">
+        <mat-icon>cloud_upload</mat-icon>
+        Upload Statement
+      </button>
+    </div>
+  </div>
+
+  <!-- Loading State -->
+  <div class="loading-container" *ngIf="isLoading">
+    <mat-spinner diameter="50"></mat-spinner>
+    <p>Loading your financial data...</p>
+  </div>
+
+  <!-- Error State -->
+  <div class="error-container" *ngIf="error && !isLoading">
+    <mat-icon>error_outline</mat-icon>
+    <h3>Unable to load data</h3>
+    <p>{{ error }}</p>
+    <button mat-raised-button color="primary" (click)="loadAllData()">
+      <mat-icon>refresh</mat-icon>
+      Retry
+    </button>
+  </div>
+
+  <!-- Dashboard Content -->
+  <div class="dashboard-content" *ngIf="!isLoading && !error && summary">
+    <!-- Summary Cards with Trends -->
+    <div class="summary-cards">
+      <!-- Income Card -->
+      <mat-card class="summary-card income">
+        <mat-card-content>
+          <div class="card-icon">
+            <mat-icon>trending_up</mat-icon>
+          </div>
+          <div class="card-info">
+            <span class="card-label">Total Income</span>
+            <span class="card-value">{{ formatCurrency(summary.totalIncome) }}</span>
+            <div class="card-trend" *ngIf="trendData?.comparisons?.income" 
+                 [ngClass]="getTrendClass(trendData?.comparisons?.income, 'income')">
+              <mat-icon>{{ getTrendIcon(trendData?.comparisons?.income?.trend || 'stable') }}</mat-icon>
+              <span>{{ trendData?.comparisons?.income?.change | number:'1.1-1' }}% vs prev period</span>
+            </div>
+          </div>
+        </mat-card-content>
+      </mat-card>
+
+      <!-- Expenses Card -->
+      <mat-card class="summary-card expenses">
+        <mat-card-content>
+          <div class="card-icon">
+            <mat-icon>trending_down</mat-icon>
+          </div>
+          <div class="card-info">
+            <span class="card-label">Total Expenses</span>
+            <span class="card-value">{{ formatCurrency(summary.totalExpenses) }}</span>
+            <div class="card-trend" *ngIf="trendData?.comparisons?.expenses"
+                 [ngClass]="getTrendClass(trendData?.comparisons?.expenses, 'expenses')">
+              <mat-icon>{{ getTrendIcon(trendData?.comparisons?.expenses?.trend || 'stable') }}</mat-icon>
+              <span>{{ trendData?.comparisons?.expenses?.change | number:'1.1-1' }}% vs prev period</span>
+            </div>
+          </div>
+        </mat-card-content>
+      </mat-card>
+
+      <!-- Investments Card -->
+      <mat-card class="summary-card investments">
+        <mat-card-content>
+          <div class="card-icon">
+            <mat-icon>savings</mat-icon>
+          </div>
+          <div class="card-info">
+            <span class="card-label">Investments</span>
+            <span class="card-value">{{ formatCurrency(summary.totalInvestments) }}</span>
+            <div class="card-trend" *ngIf="trendData?.comparisons?.investments"
+                 [ngClass]="getTrendClass(trendData?.comparisons?.investments, 'investments')">
+              <mat-icon>{{ getTrendIcon(trendData?.comparisons?.investments?.trend || 'stable') }}</mat-icon>
+              <span>{{ trendData?.comparisons?.investments?.change | number:'1.1-1' }}% vs prev period</span>
+            </div>
+          </div>
+        </mat-card-content>
+      </mat-card>
+
+      <!-- Savings Card -->
+      <mat-card class="summary-card savings" [class.negative]="summary.netSavings < 0">
+        <mat-card-content>
+          <div class="card-icon">
+            <mat-icon>{{ summary.netSavings >= 0 ? 'account_balance_wallet' : 'warning' }}</mat-icon>
+          </div>
+          <div class="card-info">
+            <span class="card-label">Net Savings</span>
+            <span class="card-value">{{ formatCurrency(summary.netSavings) }}</span>
+            <div class="card-trend" *ngIf="trendData?.comparisons?.savings"
+                 [ngClass]="getTrendClass(trendData?.comparisons?.savings, 'savings')">
+              <mat-icon>{{ getTrendIcon(trendData?.comparisons?.savings?.trend || 'stable') }}</mat-icon>
+              <span>{{ trendData?.comparisons?.savings?.change | number:'1.1-1' }}% vs prev period</span>
+            </div>
+          </div>
+        </mat-card-content>
+      </mat-card>
+    </div>
+
+    <!-- Charts Section -->
+    <div class="charts-section">
+      <!-- Monthly Trend Chart -->
+      <mat-card class="chart-card">
+        <mat-card-header>
+          <mat-card-title>
+            <mat-icon>show_chart</mat-icon>
+            Monthly Income vs Expenses
+          </mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          <div class="chart-wrapper">
+            <canvas id="trendChart"></canvas>
+          </div>
+        </mat-card-content>
+      </mat-card>
+
+      <!-- Drill-Down Category Chart -->
+      <mat-card class="chart-card drilldown-chart">
+        <mat-card-header>
+          <mat-card-title>
+            <mat-icon>pie_chart</mat-icon>
+            Expense Breakdown
+            <span class="drill-hint" *ngIf="drillState.level === 'category'">
+              (Click to drill down)
+            </span>
+          </mat-card-title>
+          
+          <!-- Breadcrumb Navigation -->
+          <div class="breadcrumb" *ngIf="drillState.level !== 'category'">
+            <button mat-icon-button (click)="drillUp()" matTooltip="Go back">
+              <mat-icon>arrow_back</mat-icon>
+            </button>
+            <div class="breadcrumb-items">
+              <span *ngFor="let crumb of getBreadcrumb(); let i = index; let last = last"
+                    [class.clickable]="!last"
+                    (click)="!last && onBreadcrumbClick(i)">
+                {{ crumb }}
+                <mat-icon *ngIf="!last">chevron_right</mat-icon>
+              </span>
+            </div>
+          </div>
+        </mat-card-header>
+        
+        <mat-card-content>
+          <div class="chart-with-legend">
+            <div class="chart-wrapper">
+              <canvas id="categoryChart"></canvas>
+              
+              <!-- Center text for doughnut -->
+              <div class="chart-center-text" *ngIf="hierarchyData?.summary">
+                <span class="center-amount">{{ formatCurrency(currentDrillTotal) }}</span>
+                <span class="center-label">Total {{ drillState.level === 'category' ? 'Expenses' : drillState.categoryName }}</span>
+              </div>
+            </div>
+            
+            <!-- Custom Legend -->
+            <div class="custom-legend">
+              <div class="legend-item" *ngFor="let item of currentChartData; let i = index"
+                   (click)="handleChartClick(i)"
+                   [matTooltip]="'Click to ' + (drillState.level === 'merchant' ? 'view transactions' : 'drill down')">
+                <div class="legend-color" [style.background-color]="item.color"></div>
+                <div class="legend-info">
+                  <span class="legend-name">{{ item.name }}</span>
+                  <span class="legend-amount">{{ formatCurrency(item.amount) }}</span>
+                </div>
+                <div class="legend-percentage">{{ item.percentage | number:'1.1-1' }}%</div>
+                <mat-icon class="legend-arrow" *ngIf="drillState.level !== 'merchant'">chevron_right</mat-icon>
+              </div>
+            </div>
+          </div>
+        </mat-card-content>
+      </mat-card>
+    </div>
+
+    <!-- Top Categories List -->
+    <mat-card class="categories-card">
+      <mat-card-header>
+        <mat-card-title>
+          <mat-icon>category</mat-icon>
+          Top Spending Categories
+        </mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="category-list">
+          <div class="category-item" *ngFor="let cat of summary.topCategories"
+               (click)="openCategoryTransactions(cat)"
+               matTooltip="Click to view transactions">
+            <div class="category-icon" [style.background-color]="cat.color + '20'" [style.color]="cat.color">
+              {{ cat.icon }}
+            </div>
+            <div class="category-info">
+              <span class="category-name">{{ cat.name }}</span>
+              <div class="category-bar">
+                <div class="bar-fill" [style.width.%]="cat.percentage" [style.background-color]="cat.color"></div>
+              </div>
+            </div>
+            <div class="category-amount">
+              <span class="amount">{{ formatCurrency(cat.amount) }}</span>
+              <span class="percentage">{{ cat.percentage | number:'1.1-1' }}%</span>
+            </div>
+          </div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Quick Stats -->
+    <mat-card class="stats-card">
+      <mat-card-header>
+        <mat-card-title>
+          <mat-icon>insights</mat-icon>
+          Quick Stats
+        </mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="stats-grid">
+          <div class="stat-item">
+            <mat-icon>receipt_long</mat-icon>
+            <span class="stat-value">{{ summary.transactionCount }}</span>
+            <span class="stat-label">Transactions</span>
+          </div>
+          <div class="stat-item">
+            <mat-icon>calendar_month</mat-icon>
+            <span class="stat-value">{{ getMonthsCount() }}</span>
+            <span class="stat-label">Months of Data</span>
+          </div>
+          <div class="stat-item">
+            <mat-icon>percent</mat-icon>
+            <span class="stat-value">{{ getSavingsRate() | number:'1.0-0' }}%</span>
+            <span class="stat-label">Savings Rate</span>
+          </div>
+          <div class="stat-item">
+            <mat-icon>avg_pace</mat-icon>
+            <span class="stat-value">{{ formatCurrency(getAvgDailyExpense()) }}</span>
+            <span class="stat-label">Avg Daily Expense</span>
+          </div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+  </div>
+
+  <!-- Empty State -->
+  <div class="empty-state" *ngIf="!isLoading && !error && !summary">
+    <mat-icon>account_balance_wallet</mat-icon>
+    <h2>Welcome to Family Finance Tracker!</h2>
+    <p>Upload your bank statement to get started with tracking your finances.</p>
+    <button mat-raised-button color="primary" routerLink="/upload">
+      <mat-icon>cloud_upload</mat-icon>
+      Upload Your First Statement
+    </button>
+  </div>
+</div>
+
+<!-- Transaction Drawer -->
+<mat-sidenav-container class="drawer-container" *ngIf="isDrawerOpen">
+  <mat-sidenav #drawer mode="over" position="end" [opened]="isDrawerOpen" (closed)="closeDrawer()">
+    <div class="drawer-content">
+      <div class="drawer-header">
+        <h3>{{ drawerTitle }}</h3>
+        <button mat-icon-button (click)="closeDrawer()">
+          <mat-icon>close</mat-icon>
+        </button>
+      </div>
+      
+      <div class="drawer-loading" *ngIf="drawerLoading">
+        <mat-spinner diameter="30"></mat-spinner>
+      </div>
+      
+      <div class="transaction-list" *ngIf="!drawerLoading">
+        <div class="transaction-item" *ngFor="let txn of drawerTransactions">
+          <div class="txn-date">{{ txn.date | date:'MMM d, y' }}</div>
+          <div class="txn-details">
+            <span class="txn-description">{{ txn.description }}</span>
+            <span class="txn-merchant">{{ txn.merchant }}</span>
+          </div>
+          <div class="txn-amount" [class.expense]="txn.amount < 0">
+            {{ formatCurrency(Math.abs(txn.amount)) }}
+          </div>
+        </div>
+        
+        <div class="no-transactions" *ngIf="drawerTransactions.length === 0">
+          <mat-icon>receipt_long</mat-icon>
+          <p>No transactions found</p>
+        </div>
+      </div>
+    </div>
+  </mat-sidenav>
+</mat-sidenav-container>
