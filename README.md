@@ -19,7 +19,8 @@ A privacy-first personal finance management application designed to help familie
 | 📊 **Analytics Dashboard** | Interactive charts showing spending patterns |
 | 🤖 **AI Chat** | Ask questions about your finances using multiple LLM providers |
 | 🔒 **Privacy-First** | All data processed locally - nothing leaves your machine |
-| 📱 **Responsive UI** | Material Design that works on desktop and mobile |
+| �️ **PII Protection** | Personal names, phone numbers, and account details are automatically masked before AI processing |
+| �📱 **Responsive UI** | Material Design that works on desktop and mobile |
 
 ## 🏗️ Architecture
 
@@ -83,7 +84,8 @@ simple_finance_tracker/
 │   ├── SRC/                    # Core processing modules
 │   │   ├── data_extraction.py # CSV parsing
 │   │   ├── categories.py      # Categorization logic
-│   │   └── analysis.py        # Financial analytics
+│   │   ├── analysis.py        # Financial analytics
+│   │   └── pii_sanitizer.py   # PII detection & masking
 │   └── requirements.txt
 ├── frontend/app/
 │   └── src/app/
@@ -173,6 +175,30 @@ The application supports multiple LLM providers through LangChain:
 - **Local Processing**: All data stays on your machine
 - **No Cloud Storage**: No data is sent to external servers
 - **API Keys**: Only used for AI features (optional)
+
+### 🛡️ PII Protection for AI Features
+
+When using the AI chat feature, your **personal information is automatically protected**:
+
+| Data Type | Protection Method |
+|-----------|------------------|
+| **Personal Names** | Replaced with `[PAYEE]`, `[ACCOUNT_HOLDER]` placeholders |
+| **Phone Numbers** | Partially masked (e.g., `XXXXX43210`) |
+| **Account Numbers** | Partially masked (e.g., `********6321`) |
+| **UPI IDs** | Username masked (e.g., `us***er@bank`) |
+
+**How it works:**
+- Before any data is sent to AI providers (Gemini, OpenAI, etc.), the PII sanitizer automatically detects and masks sensitive information
+- A green **"PII Protected"** shield badge in the AI chat indicates protection is active
+- Click the badge to see exactly what types of data are being protected
+
+**Example transformation:**
+```
+Original:  UPI-JOHN DOE-9876543210@YBL-SBIN0017785-Payment
+Sanitized: UPI-[PAYEE]-XXXXX43210@YBL-SBIN0017785-Payment
+```
+
+> ✅ **Your personal data never leaves your machine in identifiable form when using AI features.**
 
 ## 📄 License
 
