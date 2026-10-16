@@ -16,6 +16,8 @@ src_dir = os.path.join(os.path.dirname(current_dir), 'SRC')
 if src_dir not in sys.path:
     sys.path.insert(0, src_dir)
 
+from data_extraction import get_processed_data_path, save_processed_data
+
 # Import refined categorizer with fallback
 USE_REFINED = False
 RefinedCategorizerClass = None
@@ -25,7 +27,9 @@ def _get_default_colors():
     return {
         "Income": "#4CAF50", "Investments": "#2196F3", "Insurance": "#00BCD4",
         "Education": "#9C27B0", "Healthcare": "#9966FF", "Money Transfer": "#607D8B",
+        "Individual Transfers": "#78909C", "Subscriptions": "#AB47BC",
         "Food & Dining": "#FF6384", "Shopping": "#36A2EB", "Transportation": "#FFCE56",
+        "Travel": "#5C6BC0", "Telecom": "#26A69A",
         "Utilities": "#4BC0C0", "Entertainment": "#FF9F40", "Housing": "#8BC34A",
         "Other": "#795548"
     }
@@ -33,8 +37,10 @@ def _get_default_colors():
 def _get_default_icons():
     return {
         "Income": "💰", "Investments": "💎", "Insurance": "🛡️", "Education": "📚",
-        "Healthcare": "🏥", "Money Transfer": "💸", "Food & Dining": "🍔",
-        "Shopping": "🛒", "Transportation": "🚗", "Utilities": "💡",
+        "Healthcare": "🏥", "Money Transfer": "💸", "Individual Transfers": "👤",
+        "Subscriptions": "🔄", "Food & Dining": "🍔",
+        "Shopping": "🛒", "Transportation": "🚗", "Travel": "🧳",
+        "Telecom": "📱", "Utilities": "💡",
         "Entertainment": "🎬", "Housing": "🏠", "Other": "📦"
     }
 
@@ -42,7 +48,7 @@ try:
     from refined_categories import (
         RefinedCategorizer as _RefinedCategorizer, 
         REFINED_CATEGORIES as _REFINED_CATEGORIES, 
-        get_category_colors, get_category_icons
+        get_category_colors, get_category_icons, get_category_group
     )
     RefinedCategorizerClass = _RefinedCategorizer
     REFINED_CATEGORIES = _REFINED_CATEGORIES
@@ -51,6 +57,7 @@ except ImportError as e:
     print(f"Warning: Could not import refined_categories: {e}")
     get_category_colors = _get_default_colors
     get_category_icons = _get_default_icons
+    get_category_group = lambda category: 'Income' if category == 'Income' else 'Expense'
 
 try:
     from categories import categorize_transaction, learn_category
@@ -140,22 +147,8 @@ async def calculate_category_analytics(start_date: Optional[str], end_date: Opti
     """Calculate category analytics from actual processed_data.csv"""
     
     try:
-        # Look for processed_data.csv in multiple locations
-        possible_paths = [
-            'processed_data.csv',
-            '../processed_data.csv',
-            '../../processed_data.csv',
-            os.path.join(os.path.dirname(__file__), '..', '..', 'processed_data.csv')
-        ]
-        
-        csv_path = None
-        for path in possible_paths:
-            full_path = os.path.abspath(path)
-            if os.path.exists(full_path):
-                csv_path = full_path
-                break
-        
-        if not csv_path:
+        csv_path = get_processed_data_path()
+        if not os.path.exists(csv_path):
             print("❌ processed_data.csv not found")
             return get_empty_categories()
         
@@ -169,6 +162,20 @@ async def calculate_category_analytics(start_date: Optional[str], end_date: Opti
         df['Amount'] = pd.to_numeric(df['Amount'], errors='coerce')
         df['Transaction Date'] = pd.to_datetime(df['Transaction Date'], errors='coerce')
         df = df.dropna(subset=['Amount', 'Transaction Date'])
+        if 'Description' not in df.columns:
+            df['Description'] = ''
+        if 'Category' not in df.columns:
+            df['Category'] = ''
+        missing_categories = (
+            df['Category'].isna()
+            | df['Category'].astype(str).str.strip().eq('')
+        )
+        for index in df.index[missing_categories]:
+            result = categorize_transaction(
+                str(df.at[index, 'Description']),
+                float(df.at[index, 'Amount'])
+            )
+            df.at[index, 'Category'] = result['category']
         
         # Filter by date range if provided
         if start_date:
@@ -186,23 +193,25 @@ async def calculate_category_analytics(start_date: Optional[str], end_date: Opti
         
         print(f"   Analyzing {num_months} months of data")
         
-        # Calculate category totals
-        income_total = df[df['Amount'] > 0]['Amount'].sum()
-        expenditure_total = abs(df[df['Amount'] < 0]['Amount'].sum())
-        
-        # Calculate investment (from Investment category or large positive transfers)
-        investment_df = df[df['Category'].str.contains('Investment', case=False, na=False)]
-        if investment_df.empty:
-            # Alternative: look for large transactions to investment platforms
-            investment_df = df[df['Description'].str.contains('ZERODHA|GROWW|PAYTM MONEY|MUTUAL FUND', case=False, na=False)]
-        investment_total = abs(investment_df['Amount'].sum())
-        
-        # Calculate education (from Education category or educational platforms)
-        education_df = df[df['Category'].str.contains('Education', case=False, na=False)]
-        if education_df.empty:
-            # Alternative: look for educational transactions
-            education_df = df[df['Description'].str.contains('BOOK|COURSE|UDEMY|COURSERA|EDUCATION', case=False, na=False)]
-        education_total = abs(education_df['Amount'].sum())
+        # Keep cashflow categories separate so transfers and planned or
+        # investment outflows are not reported as day-to-day expenses.
+        category_groups = df['Category'].map(get_category_group)
+        income_total = df.loc[
+            df['Amount'].gt(0) & category_groups.eq('Income'),
+            'Amount'
+        ].sum()
+        expenditure_total = abs(df.loc[
+            df['Amount'].lt(0) & category_groups.eq('Expense'),
+            'Amount'
+        ].sum())
+        investment_total = abs(df.loc[
+            df['Amount'].lt(0) & category_groups.eq('Investment'),
+            'Amount'
+        ].sum())
+        education_total = abs(df.loc[
+            df['Amount'].lt(0) & df['Category'].eq('Education'),
+            'Amount'
+        ].sum())
         
         # Calculate monthly averages
         monthly_income = income_total / num_months
@@ -460,8 +469,7 @@ async def recategorize_all_data(request: RecategorizeRequest):
     """
     try:
         # Get the processed data file path
-        base_path = os.path.dirname(os.path.dirname(current_dir))
-        data_file = os.path.join(base_path, 'processed_data.csv')
+        data_file = get_processed_data_path()
         
         if not os.path.exists(data_file):
             raise HTTPException(status_code=404, detail="No processed data found")
@@ -469,6 +477,10 @@ async def recategorize_all_data(request: RecategorizeRequest):
         # Read the data
         df = pd.read_csv(data_file)
         original_count = len(df)
+        if 'Category' not in df.columns:
+            df['Category'] = ''
+        if 'Subcategory' not in df.columns:
+            df['Subcategory'] = ''
         
         # Count original categories
         original_categories = df['Category'].value_counts().to_dict() if 'Category' in df.columns else {}
@@ -497,7 +509,8 @@ async def recategorize_all_data(request: RecategorizeRequest):
                 })
         
         # Save the updated data
-        df.to_csv(data_file, index=False)
+        if not save_processed_data(df):
+            raise HTTPException(status_code=500, detail="Could not save recategorized transactions")
         
         # Count new categories
         new_categories = df['Category'].value_counts().to_dict()
@@ -540,6 +553,8 @@ async def get_colors():
                     "Food & Dining": "#FF6384",
                     "Shopping": "#36A2EB",
                     "Transportation": "#FFCE56",
+                    "Travel": "#5C6BC0",
+                    "Telecom": "#26A69A",
                     "Utilities": "#4BC0C0",
                     "Entertainment": "#FF9F40",
                     "Housing": "#8BC34A",
@@ -572,6 +587,8 @@ async def get_icons():
                     "Food & Dining": "🍔",
                     "Shopping": "🛒",
                     "Transportation": "🚗",
+                    "Travel": "🧳",
+                    "Telecom": "📱",
                     "Utilities": "💡",
                     "Entertainment": "🎬",
                     "Housing": "🏠",

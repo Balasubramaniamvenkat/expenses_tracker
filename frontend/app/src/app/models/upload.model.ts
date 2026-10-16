@@ -43,6 +43,7 @@ export interface BatchUploadResult {
   total_files: number;
   successful_files: number;
   failed_files: number;
+  dataset_replaced?: boolean;
   results: FileProcessingResult[];
   errors?: string[];
 }

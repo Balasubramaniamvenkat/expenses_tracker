@@ -7,9 +7,24 @@ Specifically designed for HDFC Bank statement CSV format.
 import os
 import pandas as pd
 import re
+import json
+import tempfile
 from datetime import datetime
 import numpy as np
 from typing import Optional, List
+
+
+SUPPORTED_STATEMENT_EXTENSIONS = {'.csv', '.xls', '.xlsx'}
+SAMPLE_STATEMENT_PREFIXES = ('synthetic_', 'test_')
+ACTIVE_STATEMENTS_MANIFEST = 'active_statements.json'
+
+DATE_COLUMNS = ('transactiondate', 'trandate', 'transdate', 'txndate', 'date', 'postingdate', 'valuedate')
+DESCRIPTION_COLUMNS = ('narration', 'particulars', 'description', 'transactiondetails', 'details', 'remarks', 'merchant')
+DEBIT_COLUMNS = ('withdrawalamt', 'withdrawal', 'debitamount', 'debitamt', 'debit', 'dramount', 'dramt', 'dr')
+CREDIT_COLUMNS = ('depositamt', 'deposit', 'creditamount', 'creditamt', 'credit', 'cramount', 'cramt', 'cr')
+AMOUNT_COLUMNS = ('transactionamount', 'txnamount', 'amount')
+BALANCE_COLUMNS = ('closingbalance', 'availablebalance', 'balance', 'bal')
+TYPE_COLUMNS = ('transactiontype', 'type', 'drcr', 'debitcredit')
 
 
 def parse_date(date_str: str) -> Optional[pd.Timestamp]:
@@ -61,8 +76,7 @@ def parse_date(date_str: str) -> Optional[pd.Timestamp]:
 
 def extract_data_from_file(file_path: str) -> Optional[pd.DataFrame]:
     """
-    Extract transaction data from CSV files only.
-    Supports only HDFC Bank CSV statement format.
+    Extract and normalize a supported CSV or Excel bank statement.
     
     Args:
         file_path (str): Path to the CSV file
@@ -74,147 +88,250 @@ def extract_data_from_file(file_path: str) -> Optional[pd.DataFrame]:
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"File not found: {file_path}")
         
-        # Only support CSV files
-        if not file_path.lower().endswith('.csv'):
-            raise ValueError("Only CSV files are supported. Please upload a CSV file in HDFC Bank format.")
-        
-        return process_csv(file_path)
+        extension = os.path.splitext(file_path)[1].lower()
+        if extension not in SUPPORTED_STATEMENT_EXTENSIONS:
+            raise ValueError("Supported statement formats are CSV, XLS, and XLSX.")
+
+        if extension == '.csv':
+            df = pd.read_csv(file_path, encoding='utf-8-sig')
+        else:
+            df = _read_excel_statement(file_path)
+
+        return _standardize_statement(df, file_path)
         
     except Exception as e:
         print(f"Error extracting data from {file_path}: {str(e)}")
         return None
 
 
-def process_csv(file_path: str) -> pd.DataFrame:
-    """
-    Process HDFC Bank CSV statement format specifically.
-    Expected format: Date, Narration, Chq./Ref.No, Value Dt, Withdrawal Amt, Deposit Amt, Closing Balance
-    
-    Args:
-        file_path (str): Path to the CSV file
-    
-    Returns:
-        pd.DataFrame: Standardized DataFrame with Transaction Date, Description, Amount columns
-    """
-    try:
-        # Read the CSV file with UTF-8-SIG encoding to handle BOM
-        df = pd.read_csv(file_path, encoding='utf-8-sig')
-        
-        # Check if the file is empty
-        if df.empty:
-            print(f"Warning: CSV file {file_path} is empty")
-            return pd.DataFrame()
-        
-        # Print column names for debugging
-        print(f"CSV columns: {list(df.columns)}")
-        
-        # Try to find the date column
-        date_col = None
-        for col in df.columns:
-            if any(term in str(col).lower() for term in ['date', 'dt']):
-                date_col = col
-                break
-        
-        if not date_col:
-            # Use first column as date if no date column found
-            date_col = df.columns[0]
-        
-        # Find description/narration column
-        desc_col = None
-        for col in df.columns:
-            if any(term in str(col).lower() for term in ['narration', 'description', 'details']):
-                desc_col = col
-                break
-        
-        if not desc_col:
-            # Use second column as description if no description column found
-            if len(df.columns) > 1:
-                desc_col = df.columns[1]
-            else:
-                desc_col = date_col
-        
-        # Rename columns for easier processing
-        df = df.rename(columns={date_col: 'Date', desc_col: 'Narration'})
-        
-        # Remove empty rows
-        df = df.dropna(subset=['Date'])
-        
-        # Parse dates using the enhanced parse_date function
-        df['Date'] = df['Date'].apply(parse_date)
-        
-        # Filter out rows where date parsing failed
-        df = df[df['Date'].notna()]
-        
-        # Handle withdrawal and deposit amounts
-        withdrawal_col = None
-        deposit_col = None
-        
-        # Find withdrawal and deposit columns (flexible column name matching)
-        for col in df.columns:
-            if any(term in str(col).lower() for term in ['withdrawal', 'debit', 'dr']):
-                withdrawal_col = col
-            elif any(term in str(col).lower() for term in ['deposit', 'credit', 'cr']):
-                deposit_col = col
-        
-        # If we can't find withdrawal/deposit columns, look for amount column
-        if not withdrawal_col and not deposit_col:
-            amount_cols = [col for col in df.columns if 'amount' in str(col).lower()]
-            if amount_cols:
-                # Use the first amount column found
-                df['Amount'] = pd.to_numeric(df[amount_cols[0]], errors='coerce').fillna(0)
-            else:
-                # Create a default amount column with zeros
-                df['Amount'] = 0
-        else:
-            # Clean and convert amount columns
-            if withdrawal_col:
-                df[withdrawal_col] = df[withdrawal_col].astype(str).str.replace('₹', '').str.replace(',', '').str.strip()
-                df[withdrawal_col] = pd.to_numeric(df[withdrawal_col], errors='coerce').fillna(0)
-            else:
-                withdrawal_col = 'temp_withdrawal'
-                df[withdrawal_col] = 0
-                
-            if deposit_col:
-                df[deposit_col] = df[deposit_col].astype(str).str.replace('₹', '').str.replace(',', '').str.strip()
-                df[deposit_col] = pd.to_numeric(df[deposit_col], errors='coerce').fillna(0)
-            else:
-                deposit_col = 'temp_deposit'
-                df[deposit_col] = 0
-            
-            # Calculate net amount (deposits are positive, withdrawals are negative)
-            df['Amount'] = df[deposit_col].fillna(0) - df[withdrawal_col].fillna(0)
-        
-        # Handle balance column
-        balance_col = None
-        for col in df.columns:
-            if any(term in str(col).lower() for term in ['balance', 'closing']):
-                balance_col = col
-                break
-        
-        if balance_col:
-            df[balance_col] = df[balance_col].astype(str).str.replace('₹', '').str.replace(',', '').str.strip()
-            df['Balance'] = pd.to_numeric(df[balance_col], errors='coerce').fillna(0)
-        else:
-            df['Balance'] = 0
-        
-        # Create standardized DataFrame
-        standardized = pd.DataFrame({
-            'Transaction Date': df['Date'],
-            'Description': df['Narration'].astype(str),
-            'Amount': df['Amount'],
-            'Balance': df.get('Balance', 0)
-        })
-        
-        # Add default Account column
-        standardized['Account'] = 'Primary Account'
-        
-        # Remove rows with invalid data
-        standardized = standardized[standardized['Transaction Date'].notna()]
-        standardized = standardized[standardized['Description'].str.strip() != '']
-        
-        print(f"Successfully processed {len(standardized)} transactions from {file_path}")
-        return standardized
+def _normalize_header(value) -> str:
+    return re.sub(r'[^a-z0-9]', '', str(value).lower())
 
+
+def _find_column(columns, aliases):
+    normalized = {column: _normalize_header(column) for column in columns}
+    for alias in aliases:
+        for column, key in normalized.items():
+            if key == alias:
+                return column
+    return None
+
+
+def _has_statement_header(columns) -> bool:
+    return (
+        _find_column(columns, DATE_COLUMNS) is not None
+        and _find_column(columns, DESCRIPTION_COLUMNS) is not None
+        and (
+            _find_column(columns, DEBIT_COLUMNS) is not None
+            or _find_column(columns, CREDIT_COLUMNS) is not None
+            or _find_column(columns, AMOUNT_COLUMNS) is not None
+        )
+    )
+
+
+def _read_excel_statement(file_path: str) -> pd.DataFrame:
+    workbook = pd.ExcelFile(file_path)
+    try:
+        best_sheet = None
+        best_header = None
+        best_score = 0
+
+        for sheet_name in workbook.sheet_names:
+            preview = pd.read_excel(workbook, sheet_name=sheet_name, header=None, nrows=50)
+            for row_index, row in preview.iterrows():
+                columns = row.tolist()
+                if not _has_statement_header(columns):
+                    continue
+                score = sum(
+                    _find_column(columns, aliases) is not None
+                    for aliases in (DATE_COLUMNS, DESCRIPTION_COLUMNS, DEBIT_COLUMNS, CREDIT_COLUMNS, AMOUNT_COLUMNS, BALANCE_COLUMNS)
+                )
+                if score > best_score:
+                    best_sheet = sheet_name
+                    best_header = row_index
+                    best_score = score
+
+        if best_sheet is None:
+            raise ValueError("Could not find a transaction header row in the workbook.")
+
+        return pd.read_excel(workbook, sheet_name=best_sheet, header=best_header)
+    finally:
+        workbook.close()
+
+
+def _to_amounts(values: pd.Series) -> pd.Series:
+    cleaned = values.astype(str).str.strip()
+    cleaned = cleaned.str.replace(r'[₹,$\s]', '', regex=True)
+    cleaned = cleaned.str.replace(r'^\((.*)\)$', r'-\1', regex=True)
+    return pd.to_numeric(cleaned, errors='coerce').fillna(0)
+
+
+def _account_name_from_path(file_path: str) -> str:
+    filename = os.path.splitext(os.path.basename(file_path))[0]
+    filename = re.sub(r'_\d{8}_\d{6}(?:_\d+)?$', '', filename)
+    masked_account = re.search(r'(?i)x{2,}(\d{4,})', filename)
+    if masked_account:
+        return f"Account XX{masked_account.group(1)}"
+    return filename or 'Primary Account'
+
+
+def get_account_name(file_path: str) -> str:
+    """Return the normalized account name represented by a statement filename."""
+    return _account_name_from_path(file_path)
+
+
+def _is_sample_statement(filename: str) -> bool:
+    raw_name = os.path.splitext(os.path.basename(filename))[0].lower()
+    account_name = _account_name_from_path(filename).lower()
+    return (
+        raw_name.startswith(SAMPLE_STATEMENT_PREFIXES)
+        or account_name.startswith(SAMPLE_STATEMENT_PREFIXES)
+    )
+
+
+def _statement_fingerprint(df: pd.DataFrame) -> Optional[bytes]:
+    identity_columns = ['Transaction Date', 'Description', 'Amount', 'Balance']
+    if 'Account' in df.columns:
+        identity_columns.append('Account')
+    if df.empty or not all(column in df.columns for column in identity_columns):
+        return None
+
+    statement = (
+        df[identity_columns]
+        .sort_values(identity_columns, kind='mergesort')
+        .reset_index(drop=True)
+    )
+    return pd.util.hash_pandas_object(statement, index=False).values.tobytes()
+
+
+def get_project_root() -> str:
+    return os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+
+def get_inputs_directory() -> str:
+    return os.path.join(get_project_root(), 'inputs')
+
+
+def get_processed_data_path() -> str:
+    return os.path.join(get_project_root(), 'processed_data.csv')
+
+
+def set_active_statement_files(file_names: List[str], inputs_dir: Optional[str] = None) -> None:
+    """Persist the statement files represented in the generated dataset."""
+    inputs_dir = inputs_dir or get_inputs_directory()
+    os.makedirs(inputs_dir, exist_ok=True)
+
+    normalized_names = []
+    for file_name in file_names:
+        if (
+            not isinstance(file_name, str)
+            or os.path.basename(file_name) != file_name
+            or os.path.splitext(file_name)[1].lower() not in SUPPORTED_STATEMENT_EXTENSIONS
+            or _is_sample_statement(file_name)
+        ):
+            raise ValueError(f"Invalid active statement filename: {file_name}")
+        normalized_names.append(file_name)
+
+    manifest_path = os.path.join(inputs_dir, ACTIVE_STATEMENTS_MANIFEST)
+    temporary_path = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode='w',
+            encoding='utf-8',
+            dir=inputs_dir,
+            prefix='.active-statements-',
+            suffix='.tmp',
+            delete=False,
+        ) as manifest_file:
+            temporary_path = manifest_file.name
+            json.dump({'files': sorted(set(normalized_names))}, manifest_file)
+            manifest_file.write('\n')
+        os.replace(temporary_path, manifest_path)
+    finally:
+        if temporary_path and os.path.exists(temporary_path):
+            os.remove(temporary_path)
+
+
+def _get_active_statement_files(inputs_dir: str) -> Optional[List[str]]:
+    manifest_path = os.path.join(inputs_dir, ACTIVE_STATEMENTS_MANIFEST)
+    if not os.path.exists(manifest_path):
+        return None
+
+    with open(manifest_path, 'r', encoding='utf-8') as manifest_file:
+        manifest = json.load(manifest_file)
+    file_names = manifest.get('files') if isinstance(manifest, dict) else None
+    if not isinstance(file_names, list) or not all(isinstance(name, str) for name in file_names):
+        raise ValueError(f"Invalid active statement manifest: {manifest_path}")
+
+    for file_name in file_names:
+        if (
+            os.path.basename(file_name) != file_name
+            or os.path.splitext(file_name)[1].lower() not in SUPPORTED_STATEMENT_EXTENSIONS
+            or _is_sample_statement(file_name)
+        ):
+            raise ValueError(f"Invalid active statement filename in manifest: {file_name}")
+    return sorted(set(file_names))
+
+
+def clear_processed_data() -> None:
+    """Remove the generated dataset so APIs cannot continue serving stale totals."""
+    processed_file = get_processed_data_path()
+    if os.path.exists(processed_file):
+        os.remove(processed_file)
+
+
+def _standardize_statement(df: pd.DataFrame, file_path: str) -> pd.DataFrame:
+    if df is None or df.empty:
+        return pd.DataFrame()
+
+    df = df.rename(columns=lambda column: str(column).strip())
+    date_col = _find_column(df.columns, DATE_COLUMNS)
+    description_col = _find_column(df.columns, DESCRIPTION_COLUMNS)
+    debit_col = _find_column(df.columns, DEBIT_COLUMNS)
+    credit_col = _find_column(df.columns, CREDIT_COLUMNS)
+    amount_col = _find_column(df.columns, AMOUNT_COLUMNS)
+
+    if date_col is None or description_col is None:
+        raise ValueError("Statement must include transaction date and description columns.")
+    if debit_col is None and credit_col is None and amount_col is None:
+        raise ValueError("Statement must include debit/credit columns or a transaction amount column.")
+
+    dates = df[date_col].apply(parse_date)
+    descriptions = df[description_col].fillna('').astype(str).str.strip()
+
+    if debit_col is not None or credit_col is not None:
+        debits = _to_amounts(df[debit_col]) if debit_col is not None else pd.Series(0, index=df.index)
+        credits = _to_amounts(df[credit_col]) if credit_col is not None else pd.Series(0, index=df.index)
+        amounts = credits - debits
+    else:
+        amounts = _to_amounts(df[amount_col])
+        type_col = _find_column(df.columns, TYPE_COLUMNS)
+        if type_col is not None:
+            transaction_types = df[type_col].fillna('').astype(str).str.strip().str.lower()
+            debit_mask = transaction_types.str.startswith(('d', 'dr')) | transaction_types.str.contains('debit|withdraw', regex=True)
+            amounts = amounts.where(~debit_mask, -amounts.abs())
+            credit_mask = transaction_types.str.startswith(('c', 'cr')) | transaction_types.str.contains('credit|deposit', regex=True)
+            amounts = amounts.where(~credit_mask, amounts.abs())
+
+    balance_col = _find_column(df.columns, BALANCE_COLUMNS)
+    balances = _to_amounts(df[balance_col]) if balance_col is not None else pd.Series(0, index=df.index)
+
+    standardized = pd.DataFrame({
+        'Transaction Date': dates,
+        'Description': descriptions,
+        'Amount': amounts,
+        'Balance': balances,
+        'Account': _account_name_from_path(file_path)
+    })
+    standardized = standardized[standardized['Transaction Date'].notna() & standardized['Description'].ne('')]
+    return standardized.reset_index(drop=True)
+
+
+def process_csv(file_path: str) -> pd.DataFrame:
+    """Normalize a CSV bank statement into the shared transaction schema."""
+    try:
+        df = pd.read_csv(file_path, encoding='utf-8-sig')
+        return _standardize_statement(df, file_path)
     except Exception as e:
         print(f"Error processing CSV file: {str(e)}")
         return pd.DataFrame()
@@ -230,8 +347,7 @@ def get_transaction_data() -> pd.DataFrame:
     """
     try:
         # First try to load processed data (persistent data)
-        project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-        processed_file = os.path.join(project_root, 'processed_data.csv')
+        processed_file = get_processed_data_path()
         
         if os.path.exists(processed_file):
             try:
@@ -262,8 +378,7 @@ def load_processed_data() -> pd.DataFrame:
     """
     try:
         # Check if there's a processed data file
-        project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-        processed_file = os.path.join(project_root, 'processed_data.csv')
+        processed_file = get_processed_data_path()
         
         if os.path.exists(processed_file):
             df = pd.read_csv(processed_file)
@@ -294,78 +409,126 @@ def save_processed_data(df: pd.DataFrame) -> bool:
         if df is None or df.empty:
             return False
             
-        project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-        processed_file = os.path.join(project_root, 'processed_data.csv')
-        
-        # Save the DataFrame
-        df.to_csv(processed_file, index=False)
-        print(f"✓ Saved {len(df)} transactions to {processed_file}")
+        if df is None or df.empty:
+            return False
+
+        processed_file = get_processed_data_path()
+        temporary_path = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode='w',
+                encoding='utf-8',
+                newline='',
+                dir=os.path.dirname(processed_file),
+                prefix='.processed-data-',
+                suffix='.tmp',
+                delete=False,
+            ) as temporary_file:
+                temporary_path = temporary_file.name
+                df.to_csv(temporary_file, index=False)
+            os.replace(temporary_path, processed_file)
+        finally:
+            if temporary_path and os.path.exists(temporary_path):
+                os.remove(temporary_path)
+
+        print(f"Saved {len(df)} transactions to {processed_file}")
         return True
         
     except Exception as e:
-        print(f"Error saving processed data: {e}")
-        return False
+        raise RuntimeError(f"Error saving processed data: {e}") from e
+
+
+def _prepare_processed_transactions(transactions: pd.DataFrame) -> pd.DataFrame:
+    if transactions is None or transactions.empty:
+        raise ValueError("No transactions were provided.")
+
+    prepared = transactions.copy()
+    duplicate_columns = ['Account', 'Transaction Date', 'Description', 'Amount']
+    missing_columns = [column for column in duplicate_columns if column not in prepared.columns]
+    if missing_columns:
+        raise ValueError(
+            f"Transactions are missing required deduplication columns: {', '.join(missing_columns)}"
+        )
+
+    prepared['Transaction Date'] = pd.to_datetime(
+        prepared['Transaction Date'],
+        errors='coerce',
+    )
+    prepared['Amount'] = pd.to_numeric(prepared['Amount'], errors='coerce')
+    prepared = prepared.dropna(subset=['Transaction Date', 'Amount'])
+    prepared = prepared.drop_duplicates(subset=duplicate_columns, keep='first')
+    prepared = prepared.sort_values('Transaction Date', ascending=False)
+    if prepared.empty:
+        raise ValueError("No valid transactions remain after date and amount validation.")
+    return prepared
+
+
+def replace_processed_data(transactions: pd.DataFrame) -> pd.DataFrame:
+    """Replace the generated dataset with only the supplied normalized transactions."""
+    prepared = _prepare_processed_transactions(transactions)
+    if not save_processed_data(prepared):
+        raise RuntimeError("The replacement transaction dataset could not be saved.")
+    return prepared
 
 
 def get_all_transaction_data() -> pd.DataFrame:
     """
-    Get all transaction data from all uploaded files combined.
-    This function combines data from all CSV files in the inputs directory.
+    Load the current generated dataset.
+
+    If no dataset exists yet, bootstrap it once from legacy statement files.
+    If an active statement manifest exists, it limits legacy bootstrap to those
+    source files. Without a manifest, all legacy statement files are considered.
     
     Returns:
-        pd.DataFrame: Combined transaction data from all files
+        pd.DataFrame: Current combined transaction data
     """
-    try:
-        # Try to find all CSV files in inputs directory
-        inputs_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'inputs')
-        if not os.path.exists(inputs_dir):
-            return pd.DataFrame()
-        
-        # Find all CSV files
-        csv_files = [f for f in os.listdir(inputs_dir) if f.lower().endswith('.csv')]
-        if not csv_files:
-            return pd.DataFrame()
-        
-        all_dataframes = []
-        
-        # Process each CSV file
-        for csv_file in csv_files:
-            file_path = os.path.join(inputs_dir, csv_file)
-            try:
-                df = extract_data_from_file(file_path)
-                if df is not None and not df.empty:
-                    # Add source file info
-                    df['Source_File'] = csv_file
-                    all_dataframes.append(df)
-            except Exception as e:
-                print(f"Error processing {csv_file}: {e}")
-                continue
-        
-        # Combine all dataframes
-        if all_dataframes:
-            combined_df = pd.concat(all_dataframes, ignore_index=True)
-            
-            # Remove duplicates based on date, description, and amount
-            if len(combined_df) > 0:
-                duplicate_cols = ['Transaction Date', 'Description', 'Amount']
-                available_cols = [col for col in duplicate_cols if col in combined_df.columns]
-                if available_cols:
-                    combined_df = combined_df.drop_duplicates(subset=available_cols, keep='first')
-            
-            # Sort by date if available
-            if 'Transaction Date' in combined_df.columns:
-                combined_df = combined_df.sort_values('Transaction Date', ascending=False)
-            
-            # Save the combined data for persistence
-            save_processed_data(combined_df)
-            
-            return combined_df
-        else:
-            return pd.DataFrame()
-    
-    except Exception as e:
-        print(f"Error in get_all_transaction_data: {e}")
+    processed_file = get_processed_data_path()
+    if os.path.exists(processed_file):
+        return load_processed_data()
+
+    inputs_dir = get_inputs_directory()
+    if not os.path.isdir(inputs_dir):
         return pd.DataFrame()
+
+    active_files = _get_active_statement_files(inputs_dir)
+    if active_files is None:
+        statement_files = [
+            filename
+            for filename in sorted(os.listdir(inputs_dir))
+            if os.path.splitext(filename)[1].lower() in SUPPORTED_STATEMENT_EXTENSIONS
+            and not _is_sample_statement(filename)
+        ]
+    else:
+        statement_files = [
+            filename
+            for filename in active_files
+            if os.path.isfile(os.path.join(inputs_dir, filename))
+        ]
+    all_dataframes = []
+    for statement_file in statement_files:
+        df = extract_data_from_file(os.path.join(inputs_dir, statement_file))
+        if df is None or df.empty:
+            print(f"Skipping unreadable legacy statement: {statement_file}")
+            continue
+        df['Source_File'] = statement_file
+        all_dataframes.append(df)
+
+    if not all_dataframes:
+        return pd.DataFrame()
+
+    combined_df = pd.concat(all_dataframes, ignore_index=True, sort=False)
+    combined_df = combined_df.drop_duplicates(
+        subset=['Account', 'Transaction Date', 'Description', 'Amount'],
+        keep='first',
+    )
+    combined_df = combined_df.sort_values('Transaction Date', ascending=False)
+    if not save_processed_data(combined_df):
+        raise RuntimeError("Legacy statements could not be saved as the generated dataset.")
+    set_active_statement_files(
+        [df['Source_File'].iloc[0] for df in all_dataframes],
+        inputs_dir,
+    )
+    return combined_df
 
 
 def filter_transactions_by_date(df: pd.DataFrame, start_date, end_date) -> pd.DataFrame:

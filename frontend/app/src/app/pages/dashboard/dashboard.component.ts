@@ -612,53 +612,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
         },
         error: (err) => {
           console.error('Dashboard API error:', err);
-          // Try to load with fallback data
-          this.loadFallbackData();
-        }
-      });
-  }
-
-  private loadFallbackData(): void {
-    // Load from categories API as fallback
-    this.http.get<any>('http://localhost:8000/api/categories/analytics')
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (data) => {
-          this.summary = this.transformCategoryData(data);
-          this.isLoading = false;
-          setTimeout(() => this.createCharts(), 100);
-        },
-        error: () => {
-          this.error = 'Could not connect to the server. Please make sure the backend is running.';
+          this.error = 'Could not load dashboard data from the server.';
           this.isLoading = false;
         }
       });
-  }
-
-  private transformCategoryData(data: any[]): DashboardSummary {
-    const income = data.find(d => d.category_id === 'income')?.monthly_amount || 0;
-    const expenses = data.find(d => d.category_id === 'expenditure')?.monthly_amount || 0;
-    const investments = data.find(d => d.category_id === 'investment')?.monthly_amount || 0;
-
-    return {
-      totalIncome: income,
-      totalExpenses: expenses,
-      totalInvestments: investments,
-      netSavings: income - expenses,
-      transactionCount: 757,
-      dateRange: {
-        from: '2024-01-01',
-        to: '2025-01-01'
-      },
-      topCategories: data.map(d => ({
-        name: d.category_name,
-        amount: d.monthly_amount,
-        percentage: d.percentage_of_income || 0,
-        icon: d.icon || '📊',
-        color: d.color || '#667eea'
-      })),
-      monthlyTrend: []
-    };
   }
 
   private createCharts(): void {

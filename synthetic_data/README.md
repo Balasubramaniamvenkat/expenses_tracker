@@ -4,6 +4,8 @@ Generate realistic HDFC bank statement CSV files for testing the finance tracker
 
 ## Quick Usage
 
+Run these commands from the `synthetic_data` directory. Generated files are saved to the repository's `inputs` directory, which is Git-ignored.
+
 ### Generate Preset Files
 ```bash
 python generate_hdfc_data.py --presets

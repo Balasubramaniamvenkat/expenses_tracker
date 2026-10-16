@@ -58,8 +58,7 @@ export class TransactionListComponent implements OnInit, AfterViewInit, OnDestro
     'description', 
     'category', 
     'amount', 
-    'account',
-    'balance'
+    'account'
   ];
 
   dataSource = new MatTableDataSource<Transaction>([]);

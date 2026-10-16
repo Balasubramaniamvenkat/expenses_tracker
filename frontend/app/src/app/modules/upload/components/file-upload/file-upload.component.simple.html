@@ -18,10 +18,10 @@
           <mat-icon class="upload-icon">cloud_upload</mat-icon>
         </div>
         
-        <h3>Upload Multiple CSV Files</h3>
+        <h3>Upload Multiple Bank Statements</h3>
         
         <p class="upload-description">
-          Drag and drop multiple CSV files here
+          Drag and drop multiple CSV or Excel files here
         </p>
         
         <div class="upload-button-container">
@@ -30,7 +30,7 @@
             Browse Files
           </button>
           <p class="file-types">
-            Supported: .csv files up to 50MB each
+            Supported: .csv, .xls, and .xlsx files up to 50MB each
           </p>
         </div>
       </div>
@@ -40,7 +40,7 @@
         id="file-input"
         type="file"
         multiple
-        accept=".csv"
+        accept=".csv,.xls,.xlsx"
         (change)="onFileSelected($event)"
         style="display: none">
     </div>

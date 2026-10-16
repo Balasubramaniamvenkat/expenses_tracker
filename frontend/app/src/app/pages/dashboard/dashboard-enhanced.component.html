@@ -122,11 +122,26 @@
           <div class="card-info">
             <span class="card-label">Investments</span>
             <span class="card-value">{{ formatCurrency(summary.totalInvestments) }}</span>
+            <span class="card-hint">Stocks, funds, gold & education</span>
             <div class="card-trend" *ngIf="trendData?.comparisons?.investments"
                  [ngClass]="getTrendClass(trendData?.comparisons?.investments, 'investments')">
               <mat-icon>{{ getTrendIcon(trendData?.comparisons?.investments?.trend || 'stable') }}</mat-icon>
               <span>{{ trendData?.comparisons?.investments?.change | number:'1.1-1' }}% vs prev period</span>
             </div>
+          </div>
+        </mat-card-content>
+      </mat-card>
+
+      <!-- Planned Outflows Card -->
+      <mat-card class="summary-card planned">
+        <mat-card-content>
+          <div class="card-icon">
+            <mat-icon>event_note</mat-icon>
+          </div>
+          <div class="card-info">
+            <span class="card-label">Planned Outflows</span>
+            <span class="card-value">{{ formatCurrency(summary.totalPlanned) }}</span>
+            <span class="card-hint">Insurance, taxes & commitments</span>
           </div>
         </mat-card-content>
       </mat-card>
@@ -150,6 +165,28 @@
       </mat-card>
     </div>
 
+    <!-- Choose which transaction group to break down below -->
+    <div class="breakdown-switch">
+      <span class="breakdown-switch-label">Break down by</span>
+      <mat-button-toggle-group [value]="breakdownType"
+                               (change)="setBreakdownType($event.value)"
+                               [hideSingleSelectionIndicator]="true"
+                               aria-label="Choose whether charts show expenses, income, or investments">
+        <mat-button-toggle value="expense">
+          <mat-icon>trending_down</mat-icon>
+          Expenses
+        </mat-button-toggle>
+        <mat-button-toggle value="income">
+          <mat-icon>trending_up</mat-icon>
+          Income
+        </mat-button-toggle>
+        <mat-button-toggle value="investment">
+          <mat-icon>savings</mat-icon>
+          Investments
+        </mat-button-toggle>
+      </mat-button-toggle-group>
+    </div>
+
     <!-- Charts Section -->
     <div class="charts-section">
       <!-- Monthly Trend Chart -->
@@ -157,7 +194,7 @@
         <mat-card-header>
           <mat-card-title>
             <mat-icon>show_chart</mat-icon>
-            Monthly Income vs Expenses
+            Monthly Income, Expenses & Investments
           </mat-card-title>
         </mat-card-header>
         <mat-card-content>
@@ -172,7 +209,7 @@
         <mat-card-header>
           <mat-card-title>
             <mat-icon>pie_chart</mat-icon>
-            Expense Breakdown
+            {{ activeBreakdownLabel }} Breakdown
             <span class="drill-hint" *ngIf="drillState.level === 'category'">
               (Click to drill down)
             </span>
@@ -197,12 +234,24 @@
         <mat-card-content>
           <div class="chart-with-legend">
             <div class="chart-wrapper">
-              <canvas id="categoryChart"></canvas>
+              <canvas id="categoryChart" [hidden]="!currentChartData.length"></canvas>
+              <div class="chart-empty" *ngIf="!currentChartData.length">
+                <mat-spinner *ngIf="(isIncomeView || isInvestmentView) && isActiveHierarchyLoading" diameter="24"></mat-spinner>
+                <mat-icon *ngIf="(!isIncomeView && !isInvestmentView) || (!isActiveHierarchyLoading && !activeHierarchyError)">pie_chart_outline</mat-icon>
+                <span *ngIf="(isIncomeView || isInvestmentView) && isActiveHierarchyLoading">{{ activeLoadingMessage }}</span>
+                <span *ngIf="activeHierarchyError">{{ activeHierarchyError }}</span>
+                <button mat-button *ngIf="activeHierarchyError" (click)="retryActiveHierarchy()">
+                  Retry
+                </button>
+                <span *ngIf="(!isIncomeView && !isInvestmentView) || (!isActiveHierarchyLoading && !activeHierarchyError)">
+                  {{ activeNoDataMessage }}
+                </span>
+              </div>
               
               <!-- Center text for doughnut -->
-              <div class="chart-center-text" *ngIf="hierarchyData?.summary">
+              <div class="chart-center-text" *ngIf="activeHierarchyData?.summary">
                 <span class="center-amount">{{ formatCurrency(currentDrillTotal) }}</span>
-                <span class="center-label">Total {{ drillState.level === 'category' ? 'Expenses' : drillState.categoryName }}</span>
+                <span class="center-label">Total {{ drillState.level === 'category' ? activeBreakdownLabel : drillState.categoryName }}</span>
               </div>
             </div>
             
@@ -225,19 +274,69 @@
       </mat-card>
     </div>
 
+    <!-- Average monthly spending chart -->
+    <mat-card class="chart-card average-chart-card">
+      <mat-card-header>
+        <mat-card-title>
+          <mat-icon>monitoring</mat-icon>
+          Average Monthly {{ activeBreakdownLabel }}
+          <span class="drill-hint" *ngIf="averageDrillState.level === 'category'">
+            (Click a bar to drill down)
+          </span>
+        </mat-card-title>
+        <div class="breadcrumb" *ngIf="averageDrillState.level !== 'category'">
+          <button mat-icon-button (click)="drillUpAverage()" matTooltip="Go back">
+            <mat-icon>arrow_back</mat-icon>
+          </button>
+          <div class="breadcrumb-items">
+            <span *ngFor="let crumb of getAverageBreadcrumb(); let i = index; let last = last"
+                  [class.clickable]="!last"
+                  (click)="!last && onAverageBreadcrumbClick(i)">
+              {{ crumb }}
+              <mat-icon *ngIf="!last">chevron_right</mat-icon>
+            </span>
+          </div>
+        </div>
+      </mat-card-header>
+      <mat-card-content>
+        <p class="average-chart-caption">
+          Monthly average in rupees, based on
+          {{ (activeHierarchyData?.summary?.monthsCovered || summary.monthsCovered) | number:'1.1-1' }}
+          calendar month{{ (activeHierarchyData?.summary?.monthsCovered || summary.monthsCovered) === 1 ? '' : 's' }}.
+          Select a bar to explore subcategories and merchants.
+        </p>
+        <div class="average-chart-wrapper"
+             [style.height.px]="Math.max(260, averageChartData.length * 42)">
+          <canvas id="averageChart" [hidden]="!averageChartData.length"></canvas>
+          <div class="chart-empty" *ngIf="!averageChartData.length">
+            <mat-spinner *ngIf="(isIncomeView || isInvestmentView) && isActiveHierarchyLoading" diameter="24"></mat-spinner>
+            <mat-icon *ngIf="(!isIncomeView && !isInvestmentView) || (!isActiveHierarchyLoading && !activeHierarchyError)">monitoring</mat-icon>
+            <span *ngIf="(isIncomeView || isInvestmentView) && isActiveHierarchyLoading">{{ activeLoadingMessage }}</span>
+            <span *ngIf="activeHierarchyError">{{ activeUnavailableMessage }}</span>
+            <span *ngIf="(!isIncomeView && !isInvestmentView) || (!isActiveHierarchyLoading && !activeHierarchyError)">
+              No monthly averages for this period
+            </span>
+          </div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
     <!-- Top Categories List -->
     <mat-card class="categories-card">
       <mat-card-header>
         <mat-card-title>
           <mat-icon>category</mat-icon>
-          Top Spending Categories
+          Top {{ isIncomeView ? 'Income Sources' : (isInvestmentView ? 'Investments' : 'Spending Categories') }}
         </mat-card-title>
       </mat-card-header>
       <mat-card-content>
-        <div class="category-list">
-          <div class="category-item" *ngFor="let cat of summary.topCategories"
+        <div class="category-list" *ngIf="topCategoryList.length; else noTopCategories">
+          <div class="category-item" *ngFor="let cat of topCategoryList"
                (click)="openCategoryTransactions(cat)"
-               matTooltip="Click to view transactions">
+               matTooltip="Click to view transactions"
+               role="button"
+               tabindex="0"
+               (keydown.enter)="openCategoryTransactions(cat)">
             <div class="category-icon" [style.background-color]="cat.color + '20'" [style.color]="cat.color">
               {{ cat.icon }}
             </div>
@@ -249,10 +348,21 @@
             </div>
             <div class="category-amount">
               <span class="amount">{{ formatCurrency(cat.amount) }}</span>
+              <span class="monthly-average">{{ formatCurrency(cat.averageMonthlyAmount) }} / month</span>
               <span class="percentage">{{ cat.percentage | number:'1.1-1' }}%</span>
             </div>
           </div>
         </div>
+        <ng-template #noTopCategories>
+          <div class="empty-category-list">
+            <mat-icon>search_off</mat-icon>
+            <span *ngIf="(isIncomeView || isInvestmentView) && isActiveHierarchyLoading">{{ activeLoadingMessage }}</span>
+            <span *ngIf="activeHierarchyError">{{ activeUnavailableMessage }}</span>
+            <span *ngIf="(!isIncomeView && !isInvestmentView) || (!isActiveHierarchyLoading && !activeHierarchyError)">
+              {{ isIncomeView ? 'No income to show for this period.' : (isInvestmentView ? 'No investments to show for this period.' : 'No spending categories to show for this period.') }}
+            </span>
+          </div>
+        </ng-template>
       </mat-card-content>
     </mat-card>
 
@@ -305,10 +415,16 @@
 
 <!-- Transaction Drawer -->
 <mat-sidenav-container class="drawer-container" *ngIf="isDrawerOpen">
-  <mat-sidenav #drawer mode="over" position="end" [opened]="isDrawerOpen" (closed)="closeDrawer()">
+  <mat-sidenav #drawer class="transaction-drawer" mode="over" position="end"
+               [opened]="isDrawerOpen" (closed)="closeDrawer()">
     <div class="drawer-content">
       <div class="drawer-header">
-        <h3>{{ drawerTitle }}</h3>
+        <div class="drawer-title-content">
+          <h3>{{ drawerTitle }}</h3>
+          <p *ngIf="!drawerLoading">
+            Showing {{ drawerTransactions.length }} of {{ drawerTotal }} transactions
+          </p>
+        </div>
         <button mat-icon-button (click)="closeDrawer()">
           <mat-icon>close</mat-icon>
         </button>
@@ -319,18 +435,31 @@
       </div>
       
       <div class="transaction-list" *ngIf="!drawerLoading">
+        <div class="drawer-error" *ngIf="drawerError">{{ drawerError }}</div>
         <div class="transaction-item" *ngFor="let txn of drawerTransactions">
-          <div class="txn-date">{{ txn.date | date:'MMM d, y' }}</div>
+          <div class="txn-date">{{ txn.date | date:'d MMM y' }}</div>
           <div class="txn-details">
             <span class="txn-description">{{ txn.description }}</span>
-            <span class="txn-merchant">{{ txn.merchant }}</span>
+            <span class="txn-merchant">
+              <mat-icon>storefront</mat-icon>
+              {{ txn.merchant }}
+            </span>
           </div>
           <div class="txn-amount" [class.expense]="txn.amount < 0">
             {{ formatCurrency(Math.abs(txn.amount)) }}
           </div>
         </div>
+
+        <button class="load-more-transactions" type="button"
+                *ngIf="drawerTransactions.length < drawerTotal"
+                [disabled]="drawerLoadingMore"
+                (click)="loadMoreDrawerTransactions()">
+          <mat-spinner *ngIf="drawerLoadingMore" diameter="18"></mat-spinner>
+          <mat-icon *ngIf="!drawerLoadingMore">expand_more</mat-icon>
+          {{ drawerLoadingMore ? 'Loading transactions...' : 'Load more transactions' }}
+        </button>
         
-        <div class="no-transactions" *ngIf="drawerTransactions.length === 0">
+        <div class="no-transactions" *ngIf="!drawerError && drawerTransactions.length === 0">
           <mat-icon>receipt_long</mat-icon>
           <p>No transactions found</p>
         </div>

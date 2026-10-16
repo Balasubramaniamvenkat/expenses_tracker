@@ -1,28 +1,23 @@
-# CSV Input File Format
+# Bank Statement Input Formats
 
-This document describes the required format for bank statement CSV files.
+The application accepts bank statements in **CSV (`.csv`), Excel 97-2003 (`.xls`), and Excel (`.xlsx`)** formats. Statements from different banks are mapped to a shared transaction format before they are merged.
 
-## 📋 Supported Format
+CSV files should have their column headers in the first row. Excel workbooks may have bank details above the table; the application searches the first 50 rows of each sheet for the transaction header.
 
-The application currently supports **HDFC Bank statement CSV format**.
+## Recognized Columns
 
----
+Column names may vary by bank. The importer recognizes common alternatives:
 
-## 📊 Required Columns
+| Standard field | Example source column names | Required |
+|-------------|-------------|---------|
+| Transaction date | `Date`, `Tran Date`, `Transaction Date`, `Value Date` | Yes |
+| Description | `Narration`, `Particulars`, `Description`, `Transaction Details`, `Remarks` | Yes |
+| Debit | `Withdrawal Amt.`, `Debit`, `DR` | At least one amount field |
+| Credit | `Deposit Amt.`, `Credit`, `CR` | At least one amount field |
+| Transaction amount | `Amount`, `Transaction Amount` | At least one amount field |
+| Balance | `Closing Balance`, `Balance`, `BAL` | Optional |
 
-Your CSV file must have these columns in the first row:
-
-| Column Name | Description | Required | Example |
-|-------------|-------------|----------|---------|
-| `Date` | Transaction date | ✅ Yes | `01-01-2024` |
-| `Narration` | Transaction description | ✅ Yes | `UPI-SWIGGY-SWIGGY@YBL...` |
-| `Chq./Ref.No.` | Reference number | Optional | `437276589036` |
-| `Value Dt` | Value date | Optional | `01-01-2024` |
-| `Withdrawal Amt.` | Debit amount | ✅ Yes* | `500.00` |
-| `Deposit Amt.` | Credit amount | ✅ Yes* | `10000.00` |
-| `Closing Balance` | Balance after transaction | Optional | `50000.00` |
-
-*At least one of Withdrawal or Deposit amount should be present.
+Debit amounts are normalized as negative values and credits as positive values. A single amount column is kept signed unless a transaction type column identifies it as a debit or credit.
 
 ---
 
@@ -102,12 +97,16 @@ The system automatically categorizes based on these keywords:
 |----------|-------------------|
 | Food & Dining | swiggy, zomato, restaurant, cafe, bigbasket |
 | Shopping | amazon, flipkart, myntra, shopping |
-| Utilities | electricity, bescom, water, gas, internet |
+| Utilities | electricity, bescom, water, gas |
+| Telecom | airtel, jio, vi, broadband, DTH |
 | Transportation | uber, ola, metro, petrol, fuel |
+| Travel | IRCTC, flights, hotel bookings, travel booking |
 | Entertainment | netflix, spotify, prime, youtube |
 | Healthcare | apollo, pharmacy, medical, hospital |
 | Investments | zerodha, groww, mutual fund, stocks |
 | Income | salary, neft cr, credit, refund |
+
+Food merchants are split by service: BigBasket and Swiggy Instamart are groceries; regular Swiggy and Zomato orders are food delivery. Telecom providers (Airtel, Jio, Vodafone Idea/Vi, and BSNL) belong to Telecom, not groceries. Travel includes IRCTC rail bookings, flights, hotels/accommodation, and travel-booking services; local taxis, metro, and fuel remain Transportation.
 
 ---
 
@@ -145,11 +144,11 @@ The system automatically categorizes based on these keywords:
 Don't have a bank statement? Generate test data:
 
 ```bash
-cd simple_finance_tracker/synthetic_data
+cd synthetic_data
 python generate_hdfc_data.py --presets
 ```
 
-This creates sample files in `inputs/` folder:
+Run this from the repository root. It creates fictional sample files in the Git-ignored `inputs/` folder:
 - `synthetic_1month_minimal.csv` - Basic test data
 - `synthetic_3months_heavy_spender.csv` - More transactions
 - `synthetic_6months_moderate.csv` - Long-term data

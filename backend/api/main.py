@@ -1,7 +1,7 @@
 """
 Main FastAPI application for Family Finance Tracker backend.
 """
-from fastapi import FastAPI, APIRouter
+from fastapi import FastAPI, APIRouter, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 # Load environment variables
@@ -10,82 +10,35 @@ load_dotenv()
 
 # Try to import the categories router
 categories_router = None
+categories_import_error = None
 try:
     from .categories import router as categories_router
     print("✓ Successfully imported categories router")
     print(f"  Router prefix: {categories_router.prefix}")
     print(f"  Router has {len(categories_router.routes)} routes")
 except Exception as e:
+    categories_import_error = str(e)
     print(f"⚠ Warning: Could not import categories router: {e}")
     print("  Creating fallback router for categories...")
     
     # Create fallback router with the CORRECT prefix - this is critical
     categories_router = APIRouter(prefix="/api/categories", tags=["categories"])
-    
+
     @categories_router.get("/health")
     async def fallback_categories_health():
         return {
-            "status": "healthy", 
-            "service": "Categories API (Fallback)",
-            "version": "1.0.0"
+            "status": "unavailable",
+            "service": "Categories API",
+            "error": categories_import_error
         }
     
     @categories_router.get("/analytics")
     async def fallback_categories_analytics():
-        """Fallback endpoint for categories analytics"""
-        # Return sample data for 5 major categories
-        return [
-            {
-                "category_id": "income",
-                "category_name": "Income",
-                "icon": "💰",
-                "color": "#4CAF50",
-                "monthly_amount": 85000,
-                "percentage_of_income": 100,
-                "trend": "up",
-                "trend_value": 8
-            },
-            {
-                "category_id": "expenditure",
-                "category_name": "Expenditure",
-                "icon": "🛒",
-                "color": "#FF9800",
-                "monthly_amount": 55000,
-                "percentage_of_income": 65,
-                "trend": "down",
-                "trend_value": 3
-            },
-            {
-                "category_id": "investment",
-                "category_name": "Investment",
-                "icon": "💎",
-                "color": "#2196F3",
-                "monthly_amount": 15000,
-                "percentage_of_income": 18,
-                "trend": "up",
-                "trend_value": 12
-            },
-            {
-                "category_id": "education",
-                "category_name": "Education",
-                "icon": "📚",
-                "color": "#9C27B0",
-                "monthly_amount": 8000,
-                "percentage_of_income": 9,
-                "trend": "up",
-                "trend_value": 15
-            },
-            {
-                "category_id": "transfers",
-                "category_name": "Transfers",
-                "icon": "🏦",
-                "color": "#607D8B",
-                "monthly_amount": 7000,
-                "percentage_of_income": 8,
-                "trend": "stable",
-                "trend_value": 0
-            }
-        ]
+        """Fail explicitly instead of serving sample figures as real analytics."""
+        raise HTTPException(
+            status_code=503,
+            detail=f"Categories analytics unavailable: {categories_import_error}"
+        )
     
     print(f"  Fallback router created with prefix: {categories_router.prefix}")
     print(f"  Fallback router has {len(categories_router.routes)} routes")

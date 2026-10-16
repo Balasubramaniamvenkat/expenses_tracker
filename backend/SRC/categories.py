@@ -144,7 +144,7 @@ CATEGORIES = {
         'keywords': [
             'swiggy', 'zomato', 'food delivery', 'uber eats',
             'grocery', 'supermarket', 'dmart', 'bigbasket', 'blinkit',
-            'restaurant', 'hotel', 'cafe', 'dominos', 'pizza hut',
+            'restaurant', 'cafe', 'dominos', 'pizza hut',
             'mcdonalds', 'kfc', 'subway', 'starbucks', 'ccd'
         ],
         'subcategories': ['Groceries', 'Food Delivery', 'Restaurants', 'Cafe & Coffee']
@@ -162,24 +162,38 @@ CATEGORIES = {
         'keywords': [
             'petrol', 'diesel', 'fuel', 'hp', 'bharat petroleum', 'indian oil',
             'uber', 'ola', 'rapido', 'taxi', 'cab', 'auto',
-            'metro', 'irctc', 'railway', 'bus', 'train',
-            'parking', 'toll', 'fastag',
-            'makemytrip', 'goibibo', 'flight', 'air india', 'indigo'
+            'metro', 'bmtc', 'best', 'dtc',
+            'parking', 'toll', 'fastag'
         ],
         'subcategories': ['Fuel', 'Taxi & Rideshare', 'Public Transport', 
-                         'Parking & Toll', 'Travel & Booking']
+                         'Parking & Toll', 'Vehicle Service & Repair']
+    },
+    'Travel': {
+        'keywords': [
+            'irctc', 'railway', 'train ticket', 'train booking',
+            'hotel booking', 'hotel reservation', 'accommodation', 'homestay',
+            'makemytrip', 'make my trip', 'goibibo', 'redbus', 'abhibus',
+            'flight', 'air india', 'indigo', 'travel booking'
+        ],
+        'subcategories': [
+            'Rail & Train', 'Flights', 'Hotels & Accommodation',
+            'Intercity Bus', 'Travel Booking', 'Tours & Activities'
+        ]
+    },
+    'Telecom': {
+        'keywords': [
+            'airtel', 'jio', 'vodafone', 'vi', 'bsnl', 'mtnl', 'mobile bill',
+            'phone bill', 'broadband', 'internet', 'wifi', 'dth', 'cable tv'
+        ],
+        'subcategories': ['Mobile & Phone', 'Internet & Broadband', 'DTH & Cable']
     },
     'Utilities': {
         'keywords': [
             'electricity', 'bescom', 'tata power', 'power bill',
             'water', 'bwssb', 'water bill',
-            'internet', 'broadband', 'wifi', 'act fibernet', 'jio fiber',
-            'mobile', 'phone', 'airtel', 'jio', 'vodafone', 'recharge',
             'gas', 'lpg', 'indane', 'hp gas', 'piped gas',
-            'dth', 'tata sky', 'dish tv'
         ],
-        'subcategories': ['Electricity', 'Water', 'Internet & Broadband', 
-                         'Mobile & Phone', 'Gas & LPG', 'DTH & Cable']
+        'subcategories': ['Electricity', 'Water', 'Gas & LPG']
     },
     'Entertainment': {
         'keywords': [
@@ -189,6 +203,14 @@ CATEGORIES = {
             'playstation', 'xbox', 'steam', 'game'
         ],
         'subcategories': ['Streaming Services', 'Movies & Theatre', 'Gaming', 'Events & Activities']
+    },
+    'Subscriptions': {
+        'keywords': [
+            'apple services', 'appleservices', 'google cloud', 'google one',
+            'microsoft 365', 'adobe', 'canva', 'dropbox', 'notion',
+            'icloud', 'membership', 'subscription'
+        ],
+        'subcategories': ['App Subscriptions', 'Cloud & Storage', 'Membership']
     },
     'Housing': {
         'keywords': [
@@ -201,6 +223,10 @@ CATEGORIES = {
     'Other': {
         'keywords': ['atm', 'cash withdrawal', 'bank charge', 'service charge'],
         'subcategories': ['ATM Withdrawal', 'Bank Charges', 'Uncategorized']
+    },
+    'Individual Transfers': {
+        'keywords': [],
+        'subcategories': ['Domestic Help', 'Personal Payment']
     }
 }
 
@@ -260,8 +286,9 @@ def _legacy_categorize(description: str, amount: float) -> Dict[str, str]:
     
     # Check categories in priority order
     priority_order = ['Insurance', 'Investments', 'Money Transfer', 'Healthcare', 
-                      'Education', 'Food & Dining', 'Shopping', 'Transportation',
-                      'Utilities', 'Entertainment', 'Housing', 'Other']
+                      'Education', 'Food & Dining', 'Shopping', 'Travel',
+                      'Transportation', 'Telecom', 'Utilities', 'Entertainment',
+                      'Housing', 'Other']
     
     for category in priority_order:
         if category in CATEGORIES:

@@ -20,6 +20,8 @@ for path in [src_dir, parent_dir, project_root]:
     if path not in sys.path:
         sys.path.insert(0, path)
 
+from refined_categories import get_category_group
+
 # Define fallback functions first
 def get_transaction_data():
     """Fallback function to get transaction data"""
@@ -455,10 +457,32 @@ async def get_transaction_metrics(
         # Apply filters
         filtered_df = filter_dataframe(df, start_date, end_date, account, category, search, min_amount, max_amount)
         
-        # Calculate metrics
+        # Calculate categories before separating income, expenses, investments,
+        # and transfers. The processed CSV intentionally stores source data only.
+        if 'Category' not in filtered_df.columns:
+            filtered_df['Category'] = ''
+        missing_categories = (
+            filtered_df['Category'].isna()
+            | filtered_df['Category'].astype(str).str.strip().eq('')
+        )
+        for index in filtered_df.index[missing_categories]:
+            description = str(filtered_df.at[index, 'Description'])
+            amount = float(filtered_df.at[index, 'Amount'])
+            result = categorize_transaction(description, amount)
+            filtered_df.at[index, 'Category'] = (
+                result.get('category', 'Other')
+                if isinstance(result, dict)
+                else str(result or 'Other')
+            )
+
+        # Calculate metrics from actual income and day-to-day expense groups;
+        # transfers and investment contributions are not spending or earnings.
         total_transactions = len(filtered_df)
-        total_income = filtered_df[filtered_df['Amount'] > 0]['Amount'].sum() if not filtered_df.empty else 0
-        total_expenses = abs(filtered_df[filtered_df['Amount'] < 0]['Amount'].sum()) if not filtered_df.empty else 0
+        groups = filtered_df['Category'].map(get_category_group)
+        income_mask = filtered_df['Amount'].gt(0) & groups.eq('Income')
+        expense_mask = filtered_df['Amount'].lt(0) & groups.eq('Expense')
+        total_income = filtered_df.loc[income_mask, 'Amount'].sum()
+        total_expenses = abs(filtered_df.loc[expense_mask, 'Amount'].sum())
         net_savings = total_income - total_expenses
         
         # Calculate date range for averages

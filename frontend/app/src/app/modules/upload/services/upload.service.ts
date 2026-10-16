@@ -200,6 +200,7 @@ export class UploadService {
     return this.http.delete<void>(`${this.apiUrl}/clear`).pipe(
       tap(() => {
         this.accountsSubject.next([]);
+        this.clearUploadSummary();
         this.clearQueue();
       })
     );
@@ -210,8 +211,8 @@ export class UploadService {
    */
   validateFile(file: File): { valid: boolean; error?: string } {
     // Check file type
-    if (!file.name.toLowerCase().endsWith('.csv')) {
-      return { valid: false, error: 'Only CSV files are supported' };
+    if (!/\.(csv|xls|xlsx)$/i.test(file.name)) {
+      return { valid: false, error: 'Supported formats are CSV, XLS, and XLSX' };
     }
 
     // Check file size (max 50MB)
@@ -308,6 +309,20 @@ export class UploadService {
   }
 
   private processBatchResult(result: BatchUploadResult, uploadedFiles: UploadFile[]): void {
+    if (result.dataset_replaced === false) {
+      const failureMessage = 'The processed dataset was not replaced. Fix any failed files and upload the complete batch again.';
+      uploadedFiles.forEach(uploadFile => {
+        this.updateFileStatus(
+          uploadFile.id,
+          'error',
+          0,
+          undefined,
+          failureMessage
+        );
+      });
+      return;
+    }
+
     // Update individual file statuses based on batch result
     if (result.results) {
       result.results.forEach((fileResult, index) => {

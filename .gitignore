@@ -17,6 +17,7 @@ inputs/
 
 # Processed transaction data
 processed_data.csv
+processed_data.csv.bak*
 user_category_mappings.json
 
 # ----- Python -----

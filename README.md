@@ -1,10 +1,10 @@
 # Family Finance Tracker
 
-A privacy-first personal finance management application designed to help families track, analyze, and manage their expenses with smart categorization and AI-powered insights. Built with Angular 19 and FastAPI, this application processes all data locally - no cloud dependency.
+A privacy-first personal finance management application designed to help families track, analyze, and manage their expenses with smart categorization and optional AI-powered insights. Built with Angular 19 and FastAPI, statement files and processed data are stored locally. If AI features are enabled, sanitized transaction context is sent to the selected AI provider.
 
 ## 📋 Overview
 
-**Family Finance Tracker** helps you understand your spending patterns by analyzing bank statements. Upload your HDFC bank CSV statement, and the application will:
+**Family Finance Tracker** helps you understand your spending patterns by analyzing bank statements. Upload CSV or Excel statements from supported banks, and the application will normalize and combine the selected batch for analysis. Each successful batch replaces the current processed dataset, so upload all statements you want included together:
 - Automatically categorize transactions (Food, Shopping, Utilities, etc.)
 - Provide visual analytics with charts and summaries
 - Offer AI-powered insights and chat capabilities
@@ -14,12 +14,12 @@ A privacy-first personal finance management application designed to help familie
 
 | Feature | Description |
 |---------|-------------|
-| 📤 **Smart Upload** | Drag & drop CSV upload with automatic parsing |
+| 📤 **Smart Upload** | Batch CSV/XLS/XLSX upload with transaction normalization and processed-dataset replacement |
 | 🏷️ **Smart Categorization** | Merchant database + personal name detection for accurate categorization |
 | 📊 **Drill-Down Dashboard** | Interactive charts with click-to-drill-down into subcategories |
 | 🛒 **Indian Merchant Database** | 500+ pre-configured Indian merchants for accurate categorization |
 | 🤖 **AI Chat** | Ask questions about your finances using multiple LLM providers |
-| 🔒 **Privacy-First** | All data processed locally - nothing leaves your machine |
+| 🔒 **Privacy-First** | Statements are stored locally; AI context is sent to a provider only when AI features are used |
 | 🛡️ **PII Protection** | Personal names, phone numbers, and account details are automatically masked before AI processing |
 | 📱 **Responsive UI** | Material Design that works on desktop and mobile |
 
@@ -108,9 +108,10 @@ simple_finance_tracker/
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/upload/` | POST | Upload bank statement CSV |
+| `/api/upload/batch` | POST | Upload a batch of bank statement files (CSV, XLS, XLSX) |
+| `/api/upload/single` | POST | Upload one bank statement file |
 | `/api/transactions/` | GET | List transactions with filters |
-| `/api/transactions/summary` | GET | Transaction summary statistics |
+| `/api/transactions/metrics` | GET | Transaction metrics |
 | `/api/dashboard/summary` | GET | Dashboard analytics |
 | `/api/categories/analytics` | GET | Category breakdown |
 | `/api/categories/hierarchy` | GET | Hierarchical category data for drill-down |
@@ -129,7 +130,7 @@ The application supports multiple LLM providers through LangChain:
 
 1. Create a `.env` file in the `backend/` directory:
    ```bash
-   cd simple_finance_tracker/backend
+   cd backend
    touch .env   # or create manually on Windows
    ```
 
@@ -153,6 +154,8 @@ The application supports multiple LLM providers through LangChain:
    - **OpenAI**: https://platform.openai.com/api-keys
    - **Anthropic**: https://console.anthropic.com/
    - **Groq**: https://console.groq.com/keys
+
+Google Gemini support is included in the default backend requirements. For OpenAI, Anthropic, or Groq, install the corresponding optional LangChain integration package listed in `backend/requirements.txt` before enabling that provider.
 
 > ⚠️ **Note**: The `.env` file is excluded from Git. Never commit API keys to version control.
 
@@ -185,13 +188,13 @@ The application supports multiple LLM providers through LangChain:
 
 ## 🔒 Privacy & Security
 
-- **Local Processing**: All data stays on your machine
-- **No Cloud Storage**: No data is sent to external servers
+- **Local Storage**: Uploaded statements and processed transaction data are stored on your machine.
+- **Optional AI**: When AI chat is used, sanitized transaction context is sent to the selected provider. PII masking reduces exposure but does not guarantee complete anonymization; review the provider's privacy terms.
 - **API Keys**: Only used for AI features (optional)
 
 ### 🛡️ PII Protection for AI Features
 
-When using the AI chat feature, your **personal information is automatically protected**:
+Before AI chat context is sent to a provider, the application attempts to detect and mask personal information:
 
 | Data Type | Protection Method |
 |-----------|------------------|
@@ -211,8 +214,8 @@ Original:  UPI-JOHN DOE-9876543210@YBL-SBIN0017785-Payment
 Sanitized: UPI-[PAYEE]-XXXXX43210@YBL-SBIN0017785-Payment
 ```
 
-> ✅ **Your personal data never leaves your machine in identifiable form when using AI features.**
+> **Important:** AI chat sends transaction context outside your machine after sanitization. Do not use AI features unless you are comfortable with the selected provider receiving that context.
 
 ## 📄 License
 
-MIT License - Free for personal and commercial use.
+The repository does not currently include a `LICENSE` file. Confirm the intended license with the project owner before reuse or redistribution.

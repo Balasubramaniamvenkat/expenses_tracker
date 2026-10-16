@@ -31,16 +31,17 @@ Chart.register(...registerables);
         </mat-card-header>
         
         <mat-card-content>
-          <div class="chart-wrapper" *ngIf="!isLoading; else loadingTemplate">
+          <div class="chart-wrapper" *ngIf="!isLoading && !errorMessage && categoryData.length > 0; else loadingTemplate">
             <canvas #chartCanvas id="monthlyBarChart"></canvas>
           </div>
           
           <ng-template #loadingTemplate>
-            <div class="loading-container">
+            <div class="loading-container" *ngIf="isLoading">
               <mat-spinner diameter="50"></mat-spinner>
               <p>Loading category data...</p>
             </div>
           </ng-template>
+          <p class="error-message" *ngIf="!isLoading && errorMessage">{{ errorMessage }}</p>
           
           <!-- Summary Cards -->
           <div class="summary-cards" *ngIf="!isLoading && categoryData.length > 0">
@@ -217,6 +218,7 @@ export class MonthlyBarChartComponent implements OnInit, OnDestroy {
   chart: Chart | null = null;
   categoryData: SimpleCategoryData[] = [];
   isLoading = true;
+  errorMessage: string | null = null;
 
   constructor(private categoryService: CategoryService) {}
 
@@ -235,6 +237,7 @@ export class MonthlyBarChartComponent implements OnInit, OnDestroy {
 
   private loadCategoryData() {
     this.isLoading = true;
+    this.errorMessage = null;
     console.log('🚀 Loading category data...');
     
     // Use a wide date range to capture all available data
@@ -245,7 +248,6 @@ export class MonthlyBarChartComponent implements OnInit, OnDestroy {
     const dateRange = { startDate, endDate };
     console.log('📅 Date range:', dateRange);
     
-    // Try to load data from service, fallback to local data if service fails
     this.categoryService.getCategoryAnalytics(dateRange)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
@@ -260,10 +262,8 @@ export class MonthlyBarChartComponent implements OnInit, OnDestroy {
           
           console.log('🎯 Filtered data for target categories:', this.categoryData);
           
-          // If no data found, use fallback
           if (this.categoryData.length === 0) {
-            console.log('⚠️ No data found from API, using fallback');
-            this.categoryData = this.getFallbackData();
+            this.errorMessage = 'No category data is available for this date range.';
           }
           
           // Log the actual amounts being displayed
@@ -274,74 +274,16 @@ export class MonthlyBarChartComponent implements OnInit, OnDestroy {
           
           this.isLoading = false;
           
-          // Create chart after data is loaded
-          setTimeout(() => this.createChart(), 100);
+          if (this.categoryData.length > 0) {
+            setTimeout(() => this.createChart(), 100);
+          }
         },
         error: (error) => {
           console.error('❌ Error loading category data:', error);
-          console.log('🔄 Using fallback data due to API error');
-          this.categoryData = this.getFallbackData();
-          
-          // Log fallback amounts
-          console.log('💰 Fallback amounts being displayed:');
-          this.categoryData.forEach(item => {
-            console.log(`  - ${item.category_name}: ₹${item.monthly_amount.toLocaleString()}`);
-          });
-          
+          this.errorMessage = 'Could not load category data from the server.';
           this.isLoading = false;
-          setTimeout(() => this.createChart(), 100);
         }
       });
-  }
-
-  private getFallbackData(): SimpleCategoryData[] {
-    // REAL DATA FROM YOUR ACTUAL TRANSACTIONS
-    return [
-      {
-        category_id: 'income',
-        category_name: 'Income',
-        icon: '💰',
-        color: '#4CAF50',
-        monthly_amount: 300010.39,
-        percentage_of_income: 100,
-        trend: 'stable',
-        trend_value: 0,
-        budget_target: 100
-      },
-      {
-        category_id: 'expenditure',
-        category_name: 'Expenditure',
-        icon: '🛒',
-        color: '#FF9800',
-        monthly_amount: 328871.13,
-        percentage_of_income: 109.6,
-        trend: 'stable',
-        trend_value: 0,
-        budget_target: 70
-      },
-      {
-        category_id: 'investment',
-        category_name: 'Investment',
-        icon: '💎',
-        color: '#2196F3',
-        monthly_amount: 91738.78,
-        percentage_of_income: 30.6,
-        trend: 'up',
-        trend_value: 5,
-        budget_target: 20
-      },
-      {
-        category_id: 'education',
-        category_name: 'Education',
-        icon: '📚',
-        color: '#9C27B0',
-        monthly_amount: 1024.79,
-        percentage_of_income: 0.3,
-        trend: 'stable',
-        trend_value: 0,
-        budget_target: 5
-      }
-    ];
   }
 
   private createChart() {

@@ -25,6 +25,9 @@ load_dotenv()
 import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'SRC'))
 from pii_sanitizer import PIISanitizer, sanitize_for_ai_context  # type: ignore
+from data_extraction import get_processed_data_path
+from categories import categorize_transaction
+from refined_categories import get_category_group
 
 # LangChain imports
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
@@ -186,29 +189,33 @@ def get_transaction_context() -> tuple:
         tuple: (context_string, pii_summary_dict)
     """
     try:
-        # Find processed_data.csv
-        possible_paths = [
-            'processed_data.csv',
-            '../processed_data.csv',
-            '../../processed_data.csv',
-            os.path.join(os.path.dirname(__file__), '..', '..', 'processed_data.csv')
-        ]
-        
-        csv_path = None
-        for path in possible_paths:
-            full_path = os.path.abspath(path)
-            if os.path.exists(full_path):
-                csv_path = full_path
-                break
-        
-        if not csv_path:
+        csv_path = get_processed_data_path()
+        if not os.path.exists(csv_path):
             return "No transaction data available. Please upload a bank statement first.", {}
         
         print(f"📊 Loading transaction data from: {csv_path}")
         
         # Load and process the data
         df = pd.read_csv(csv_path)
-        
+        df['Amount'] = pd.to_numeric(df['Amount'], errors='coerce')
+        df['Transaction Date'] = pd.to_datetime(df['Transaction Date'], errors='coerce')
+        df = df.dropna(subset=['Amount', 'Transaction Date'])
+        if 'Description' not in df.columns:
+            df['Description'] = ''
+        if 'Category' not in df.columns:
+            df['Category'] = ''
+
+        missing_categories = (
+            df['Category'].isna()
+            | df['Category'].astype(str).str.strip().eq('')
+        )
+        for index in df.index[missing_categories]:
+            result = categorize_transaction(
+                str(df.at[index, 'Description']),
+                float(df.at[index, 'Amount'])
+            )
+            df.at[index, 'Category'] = result['category']
+
         # ========================================
         # PII SANITIZATION - Protect user privacy
         # ========================================
@@ -223,13 +230,22 @@ def get_transaction_context() -> tuple:
         print(f"   - UPI IDs: {pii_summary['breakdown']['upi_ids']}")
         
         # Calculate summary statistics
-        df['Amount'] = pd.to_numeric(df['Amount'], errors='coerce')
-        df['Transaction Date'] = pd.to_datetime(df['Transaction Date'], errors='coerce')
-        df = df.dropna(subset=['Amount', 'Transaction Date'])
-        
-        # Basic stats
-        total_income = df[df['Amount'] > 0]['Amount'].sum()
-        total_expenses = abs(df[df['Amount'] < 0]['Amount'].sum())
+        groups = df['Category'].map(get_category_group)
+        income_df = df[(df['Amount'] > 0) & groups.eq('Income')]
+        expense_df = df[(df['Amount'] < 0) & groups.eq('Expense')].copy()
+        investment_df = df[(df['Amount'] < 0) & groups.eq('Investment')]
+        investment_credit_df = df[(df['Amount'] > 0) & groups.eq('Investment')]
+        planned_df = df[(df['Amount'] < 0) & groups.eq('Planned')]
+        transfer_df = df[(df['Amount'] < 0) & groups.eq('Transfer')]
+        transfer_credit_df = df[(df['Amount'] > 0) & groups.eq('Transfer')]
+
+        total_income = income_df['Amount'].sum()
+        total_expenses = abs(expense_df['Amount'].sum())
+        total_investments = abs(investment_df['Amount'].sum())
+        investment_proceeds = investment_credit_df['Amount'].sum()
+        total_planned = abs(planned_df['Amount'].sum())
+        total_transfers = abs(transfer_df['Amount'].sum())
+        transfers_received = transfer_credit_df['Amount'].sum()
         net_savings = total_income - total_expenses
         
         # Date range
@@ -237,10 +253,9 @@ def get_transaction_context() -> tuple:
         date_max = df['Transaction Date'].max().strftime('%Y-%m-%d')
         
         # Category breakdown
-        category_summary = df.groupby('Category')['Amount'].sum().to_dict()
+        category_summary = expense_df.groupby('Category')['Amount'].sum().abs().to_dict()
         
         # Top merchants/descriptions for expenses
-        expense_df = df[df['Amount'] < 0].copy()
         expense_df['Amount'] = abs(expense_df['Amount'])
         top_merchants = expense_df.groupby('Description')['Amount'].sum().nlargest(10).to_dict()
         
@@ -253,6 +268,11 @@ Total Transactions: {len(df)}
 TOTALS:
 - Total Income: ₹{total_income:,.2f}
 - Total Expenses: ₹{total_expenses:,.2f}
+- Investments: ₹{total_investments:,.2f}
+- Investment proceeds and returns: ₹{investment_proceeds:,.2f}
+- Planned outflows (education, insurance, taxes, loans): ₹{total_planned:,.2f}
+- Transfers and cash withdrawals: ₹{total_transfers:,.2f}
+- Transfers received (not income): ₹{transfers_received:,.2f}
 - Net Savings: ₹{net_savings:,.2f}
 - Savings Rate: {(net_savings/total_income*100) if total_income > 0 else 0:.1f}%
 

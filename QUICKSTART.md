@@ -2,10 +2,12 @@
 
 Get the Family Finance Tracker running in under 5 minutes.
 
+Run the commands below from the repository root (the folder containing this file), unless a step says otherwise.
+
 ## Prerequisites
 
 - **Python 3.9+** - [Download Python](https://python.org)
-- **Node.js 18+** - [Download Node.js](https://nodejs.org)
+- **Node.js 18.19.1+, 20.11.1+, or 22.x** - [Download Node.js](https://nodejs.org)
 - **Git** - [Download Git](https://git-scm.com)
 
 ---
@@ -16,7 +18,7 @@ Open a terminal and run:
 
 ```bash
 # Navigate to backend directory
-cd simple_finance_tracker/backend
+cd backend
 
 # Create virtual environment (first time only)
 python -m venv venv
@@ -46,7 +48,7 @@ Open a **new terminal** and run:
 
 ```bash
 # Navigate to frontend directory
-cd simple_finance_tracker/frontend/app
+cd frontend/app
 
 # Install dependencies (first time only)
 npm install
@@ -62,6 +64,17 @@ npm start
 ## 🌐 Step 3: Access the Application
 
 Open your browser and navigate to: **http://localhost:4200**
+
+Each upload batch replaces the current processed dataset. Select all CSV/Excel
+statements you want included in the dashboard together; the upload accepts any number
+of files, up to 50MB each. The selected files are parsed, normalized, and categorized
+as one batch, with duplicate transactions within that batch removed. When every file
+processes successfully, `processed_data.csv` is atomically overwritten with only the
+batch's transactions, and dashboard totals are recalculated from it. If any file fails,
+the existing processed dataset is left unchanged and the full batch must be corrected
+and uploaded again. Original files are kept in `inputs`; uploading identical file
+content reuses the existing source file. The `inputs` folder is local and Git-ignored;
+the synthetic data generator also writes its test files there.
 
 ---
 
@@ -80,7 +93,7 @@ Open your browser and navigate to: **http://localhost:4200**
 To use the AI chat feature, create a `.env` file in the `backend` directory:
 
 ```bash
-cd simple_finance_tracker/backend
+cd backend
 ```
 
 Create `.env` file with your API key:
@@ -92,6 +105,8 @@ OPENAI_API_KEY=your-openai-key
 ANTHROPIC_API_KEY=your-anthropic-key
 GROQ_API_KEY=your-groq-key
 ```
+
+Google Gemini support is included in the default backend requirements. For OpenAI, Anthropic, or Groq, install the corresponding optional LangChain integration package listed in `backend/requirements.txt` before using that provider.
 
 ---
 
@@ -129,7 +144,7 @@ pip install "numpy<2.0.0"
 Ensure you're running the backend from the correct directory:
 ```bash
 # Must run from backend directory, NOT backend/api
-cd simple_finance_tracker/backend
+cd backend
 python -m uvicorn api.main:app --reload --port 8000
 ```
 
@@ -140,20 +155,21 @@ python -m uvicorn api.main:app --reload --port 8000
 Generate test data to try the application:
 
 ```bash
-cd simple_finance_tracker/synthetic_data
+cd synthetic_data
 python generate_hdfc_data.py --presets
 ```
 
-This creates sample bank statement files in the `inputs` folder that you can upload to test the application.
+This creates fictional sample bank statement files in the Git-ignored `inputs` folder that you can upload to test the application.
 
 ---
 
 ## ✅ Verification Checklist
 
-- [ ] Backend shows "Uvicorn running on http://0.0.0.0:8000"
+- [ ] Backend shows "Uvicorn running on http://127.0.0.1:8000"
 - [ ] Frontend shows "Compiled successfully"
 - [ ] Browser opens http://localhost:4200 without errors
-- [ ] Upload page accepts CSV files
+- [ ] Upload page accepts CSV, XLS, and XLSX statements
+- [ ] Upload multiple statements and confirm they replace the processed dataset
 - [ ] Dashboard shows data after upload
 
 ---

@@ -24,6 +24,7 @@ interface FilePreview {
   monthsCovered?: number;
   isAnalyzing: boolean;
   error?: string;
+  analysisNote?: string;
 }
 
 @Component({
@@ -66,7 +67,7 @@ interface FilePreview {
               </div>
               
               <h3 class="upload-title">
-                {{ isUploading ? 'Processing Files...' : 'Drag and drop CSV files here' }}
+                {{ isUploading ? 'Processing Files...' : 'Drag and drop bank statements here' }}
               </h3>
               
               <p class="upload-subtitle" *ngIf="!isUploading">or click to browse</p>
@@ -82,17 +83,21 @@ interface FilePreview {
               <input #fileInput
                      type="file" 
                      style="display: none" 
-                     accept=".csv"
+                     accept=".csv,.xls,.xlsx"
                      multiple
                      (change)="onFileSelected($event)">
               
               <p class="click-hint" *ngIf="!isUploading">
-                <strong>Click anywhere in this box</strong> to select your bank statement CSV files
+                <strong>Click anywhere in this box</strong> to select bank statement files
               </p>
               
               <div class="supported-formats" *ngIf="!isUploading">
-                <span>Supported: CSV files up to 50MB each</span>
+                <span>Supported: CSV, XLS, and XLSX files up to 50MB each</span>
               </div>
+              <p class="overwrite-warning" *ngIf="!isUploading">
+                A successful upload replaces the processed dataset with exactly the selected files.
+                Select the full set you want included in your charts. If any file fails, the current dataset stays unchanged.
+              </p>
             </div>
           </div>
         </mat-card-content>
@@ -117,7 +122,7 @@ interface FilePreview {
         <mat-card-header>
           <mat-icon mat-card-avatar color="primary">queue</mat-icon>
           <mat-card-title>Selected Files ({{ filePreviews.length }})</mat-card-title>
-          <mat-card-subtitle>{{ getTotalPreviewRows() }} transactions ready for upload</mat-card-subtitle>
+          <mat-card-subtitle>{{ getPreviewSubtitle() }}</mat-card-subtitle>
         </mat-card-header>
         
         <mat-card-content>
@@ -160,6 +165,8 @@ interface FilePreview {
                   <span class="stat-name">Columns</span>
                 </div>
               </div>
+
+              <p *ngIf="preview.analysisNote">{{ preview.analysisNote }}</p>
               
               <!-- Analyzing indicator -->
               <div class="file-analyzing" *ngIf="preview.isAnalyzing">
@@ -178,14 +185,14 @@ interface FilePreview {
           <!-- Combined Preview Summary -->
           <div class="preview-summary" *ngIf="filePreviews.length > 0">
             <div class="summary-row">
-              <span class="summary-label">Total Transactions:</span>
+              <span class="summary-label">{{ hasExcelPreviews() ? 'CSV preview rows:' : 'Total Transactions:' }}</span>
               <span class="summary-value">{{ getTotalPreviewRows().toLocaleString() }}</span>
             </div>
-            <div class="summary-row" *ngIf="getCombinedDateRange()">
+            <div class="summary-row" *ngIf="getCombinedDateRange() && !hasExcelPreviews()">
               <span class="summary-label">Date Range:</span>
               <span class="summary-value">{{ formatDateRange(getCombinedDateRange()!) }}</span>
             </div>
-            <div class="summary-row" *ngIf="getCombinedMonths() > 0">
+            <div class="summary-row" *ngIf="getCombinedMonths() > 0 && !hasExcelPreviews()">
               <span class="summary-label">Total Months:</span>
               <span class="summary-value">{{ getCombinedMonths() }}</span>
             </div>
@@ -481,6 +488,13 @@ interface FilePreview {
       font-size: 0.875rem;
       color: var(--on-surface-medium);
       opacity: 0.8;
+    }
+
+    .overwrite-warning {
+      max-width: 680px;
+      margin: var(--spacing-md) auto 0;
+      color: #8a3b12;
+      font-size: 0.875rem;
     }
 
     /* Progress Card */
@@ -1016,19 +1030,19 @@ export class SimpleUploadComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   private addFiles(files: File[]): void {
-    const csvFiles = files.filter(file => file.name.toLowerCase().endsWith('.csv'));
+    const supportedFiles = files.filter(file => /\.(csv|xls|xlsx)$/i.test(file.name));
     
-    if (csvFiles.length !== files.length) {
-      this.snackBar.open('Only CSV files are supported', 'Close', { duration: 3000 });
+    if (supportedFiles.length !== files.length) {
+      this.snackBar.open('Supported formats are CSV, XLS, and XLSX', 'Close', { duration: 3000 });
     }
 
     // Check file size (50MB limit)
-    const oversizedFiles = csvFiles.filter(file => file.size > 50 * 1024 * 1024);
+    const oversizedFiles = supportedFiles.filter(file => file.size > 50 * 1024 * 1024);
     if (oversizedFiles.length > 0) {
       this.snackBar.open(`Some files exceed 50MB limit and were skipped`, 'Close', { duration: 3000 });
     }
 
-    const validFiles = csvFiles.filter(file => file.size <= 50 * 1024 * 1024);
+    const validFiles = supportedFiles.filter(file => file.size <= 50 * 1024 * 1024);
     
     // Add only new files (avoid duplicates)
     const newFiles = validFiles.filter(file => 
@@ -1049,7 +1063,12 @@ export class SimpleUploadComponent implements OnInit, OnDestroy, AfterViewInit {
       this.files.push(file);
       
       // Analyze file in background
-      this.analyzeCSVFile(preview);
+      if (file.name.toLowerCase().endsWith('.csv')) {
+        this.analyzeCSVFile(preview);
+      } else {
+        preview.isAnalyzing = false;
+        preview.analysisNote = 'Transaction preview is available after upload.';
+      }
     });
 
     if (newFiles.length > 0) {
@@ -1236,6 +1255,17 @@ export class SimpleUploadComponent implements OnInit, OnDestroy, AfterViewInit {
     return this.filePreviews.reduce((sum, p) => sum + p.rowCount, 0);
   }
 
+  hasExcelPreviews(): boolean {
+    return this.filePreviews.some(preview => !!preview.analysisNote);
+  }
+
+  getPreviewSubtitle(): string {
+    if (this.hasExcelPreviews()) {
+      return `${this.getTotalPreviewRows()} CSV preview rows; Excel counts are confirmed after upload`;
+    }
+    return `${this.getTotalPreviewRows()} transactions ready for upload`;
+  }
+
   getCombinedDateRange(): { from: string; to: string } | null {
     const allDates: string[] = [];
     this.filePreviews.forEach(p => {
@@ -1301,26 +1331,36 @@ export class SimpleUploadComponent implements OnInit, OnDestroy, AfterViewInit {
   uploadFiles(): void {
     if (this.files.length === 0) return;
 
+    if (!window.confirm(
+      `Replace the processed dataset with these ${this.files.length} selected file(s)?`
+    )) {
+      return;
+    }
+
     this.isUploading = true;
+    const formData = new FormData();
+    this.files.forEach(file => formData.append('files', file));
 
-    // Upload files one by one to the backend API
-    const uploadPromises = this.files.map(file => {
-      const formData = new FormData();
-      formData.append('file', file);
-      return this.http.post<any>(`${this.apiUrl}/single`, formData).toPromise();
-    });
-
-    Promise.all(uploadPromises)
-      .then(results => {
+    this.http.post<any>(`${this.apiUrl}/batch`, formData).subscribe({
+      next: result => {
         this.isUploading = false;
+        const results = result.results || [];
+        if (result.dataset_replaced !== true) {
+          const message = result.overall_summary?.dataset_replacement_message
+            || 'The processed dataset was not replaced. Check the selected files and try again.';
+          this.snackBar.open(message, 'Close', { duration: 6000 });
+          return;
+        }
         this.createUploadSummaryFromResults(results);
-        this.snackBar.open('Files uploaded and processed successfully!', 'Close', { duration: 3000 });
-      })
-      .catch(error => {
+        const message = `Replaced processed data with ${result.successful_uploads} file(s).`;
+        this.snackBar.open(message, 'Close', { duration: 4000 });
+      },
+      error: error => {
         this.isUploading = false;
         console.error('Upload error:', error);
         this.snackBar.open('Error uploading files. Please try again.', 'Close', { duration: 5000 });
-      });
+      }
+    });
   }
 
   private createUploadSummaryFromResults(results: any[]): void {
@@ -1402,34 +1442,6 @@ export class SimpleUploadComponent implements OnInit, OnDestroy, AfterViewInit {
 
     this.files = []; // Clear files after successful upload
     this.filePreviews = []; // Clear previews after successful upload
-  }
-
-  private createUploadSummary(): void {
-    const mockColumns = ['Date', 'Description', 'Amount', 'Category', 'Account'];
-    const mockFileData: UploadedFileData[] = this.files.map(file => ({
-      fileName: file.name,
-      recordCount: Math.floor(Math.random() * 500) + 100,
-      columns: mockColumns,
-      fileSize: file.size,
-      dateRange: {
-        from: '2024-01-01',
-        to: '2024-12-31'
-      }
-    }));
-
-    this.uploadSummary = {
-      totalFiles: this.files.length,
-      totalRecords: mockFileData.reduce((sum, file) => sum + file.recordCount, 0),
-      uniqueColumns: mockColumns,
-      totalFileSize: this.files.reduce((sum, file) => sum + file.size, 0),
-      dateRange: {
-        from: '2024-01-01',
-        to: '2024-12-31'
-      },
-      files: mockFileData
-    };
-
-    this.files = []; // Clear files after successful upload
   }
 
   uploadMore(): void {

@@ -92,7 +92,7 @@ export const MAJOR_CATEGORIES = [
     icon: '🛒',
     color: '#FF9800',
     targetPercentage: 65,
-    description: 'Food, utilities, transportation, shopping, entertainment'
+    description: 'Food, utilities, transportation, shopping, entertainment, subscriptions'
   },
   {
     id: 'investment',
@@ -116,7 +116,7 @@ export const MAJOR_CATEGORIES = [
     icon: '🏦',
     color: '#607D8B',
     targetPercentage: 8,
-    description: 'Bank transfers, savings, insurance, loan payments'
+    description: 'Bank transfers, individual transfers, savings, insurance, loan payments'
   }
 ] as const;
 

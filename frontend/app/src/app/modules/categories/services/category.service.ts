@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable, of } from 'rxjs';
+import { Observable, of, throwError } from 'rxjs';
 import { map, catchError } from 'rxjs/operators';
 import { CategoryAnalytics, DateRange, MAJOR_CATEGORIES } from '../models/category.model';
 
@@ -42,62 +42,9 @@ export class CategoryService {
         }),
         catchError(error => {
           console.error('❌ API call failed:', error);
-          console.log('🔄 Returning fallback data from service');
-          const fallback = this.getFallbackData();
-          console.log('📊 Fallback data:', fallback);
-          return of(fallback);
+          return throwError(() => error);
         })
       );
-  }
-
-  private getFallbackData(): SimpleCategoryData[] {
-    // REAL DATA FROM YOUR ACTUAL TRANSACTIONS
-    return [
-      {
-        category_id: 'income',
-        category_name: 'Income',
-        icon: '💰',
-        color: '#4CAF50',
-        monthly_amount: 300010.39,
-        percentage_of_income: 100,
-        trend: 'stable',
-        trend_value: 0,
-        budget_target: 100
-      },
-      {
-        category_id: 'expenditure',
-        category_name: 'Expenditure',
-        icon: '🛒',
-        color: '#FF9800',
-        monthly_amount: 328871.13,
-        percentage_of_income: 109.6,
-        trend: 'stable',
-        trend_value: 0,
-        budget_target: 70
-      },
-      {
-        category_id: 'investment',
-        category_name: 'Investment',
-        icon: '💎',
-        color: '#2196F3',
-        monthly_amount: 91738.78,
-        percentage_of_income: 30.6,
-        trend: 'up',
-        trend_value: 5,
-        budget_target: 20
-      },
-      {
-        category_id: 'education',
-        category_name: 'Education',
-        icon: '📚',
-        color: '#9C27B0',
-        monthly_amount: 1024.79,
-        percentage_of_income: 0.3,
-        trend: 'stable',
-        trend_value: 0,
-        budget_target: 5
-      }
-    ];
   }
 
   getCategoryAnalyticsComplex(dateRange: DateRange): Observable<CategoryAnalytics[]> {

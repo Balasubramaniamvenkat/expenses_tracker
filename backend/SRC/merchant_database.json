@@ -1,7 +1,7 @@
 {
   "_description": "Known merchant database for India - used for accurate categorization",
-  "_version": "1.0.0",
-  "_last_updated": "2026-01-31",
+  "_version": "1.1.0",
+  "_last_updated": "2026-02-14",
   
   "jewelry_shops": {
     "category": "Investments",
@@ -74,7 +74,8 @@
       "sbi life", "max life", "bajaj allianz life", "tata aia", "kotak life",
       "aditya birla sun life", "pnb metlife", "canara hsbc", "exide life",
       "aegon life", "aviva life", "bharti axa life", "edelweiss tokio",
-      "future generali life", "shriram life", "star union dai ichi"
+      "future generali life", "shriram life", "star union dai ichi",
+      "licindia", "paytmlicindia"
     ]
   },
   
@@ -83,9 +84,17 @@
     "subcategory": "Health Insurance",
     "merchants": [
       "star health", "max bupa", "care health", "niva bupa", "aditya birla health",
-      "hdfc ergo health", "icici lombard health", "new india assurance",
-      "united india insurance", "oriental insurance", "national insurance",
+      "hdfc ergo health", "icici lombard health",
       "religare health", "apollo munich", "manipal cigna"
+    ]
+  },
+
+  "general_insurance_companies": {
+    "category": "Insurance",
+    "subcategory": "General Insurance",
+    "merchants": [
+      "new india assurance", "the new india assura", "united india insurance",
+      "oriental insurance", "national insurance"
     ]
   },
   
@@ -108,7 +117,8 @@
       "sharekhan", "iifl securities", "kotak securities", "hdfc securities",
       "icici direct", "axis direct", "motilal oswal", "geojit", "edelweiss",
       "alice blue", "fyers", "samco", "trustline", "karvy",
-      "sbi securities", "sbicap securities", "religare", "indiabulls"
+      "sbi securities", "sbicap securities", "religare", "indiabulls",
+      "razpbseindiacom"
     ]
   },
   
@@ -144,7 +154,7 @@
     "category": "Education",
     "subcategory": "College & University",
     "merchants": [
-      "iit", "iim", "nit", "bits pilani", "vit", "manipal university",
+      "iit", "iim", "nit", "bits pilani", "vit", "comedk", "comedcolg", "manipal university",
       "amity university", "lovely professional", "christ university",
       "symbiosis", "nift", "nid", "srm university", "anna university",
       "jnu", "du", "delhi university", "mumbai university", "pune university",
@@ -168,9 +178,10 @@
     "category": "Education",
     "subcategory": "Coaching & Tuition",
     "merchants": [
-      "byjus", "byju", "unacademy", "vedantu", "toppr", "aakash", "allen",
+      "byjus", "byju", "unacademy", "vedantu", "toppr", "aakash", "allen", "allenacin",
+      "ccaallenacin",
       "allen career", "allen coaching", "allen institute",
-      "fiitjee", "resonance", "bansal classes", "vidyamandir", "narayana",
+      "fiitjee", "resonance", "bansal classes", "vidyamandir", "narayana junior", "narayana iit",
       "sri chaitanya", "physics wallah", "whitehat jr", "coding ninjas",
       "scaler", "cuemath", "lido learning", "doubtnut", "extramarks",
       "t.i.m.e", "time coaching", "career launcher", "ims", "endeavor"
@@ -192,7 +203,7 @@
     "subcategory": "Food Delivery",
     "merchants": [
       "swiggy", "zomato", "uber eats", "dunzo", "faasos", "box8",
-      "behrouz", "eatfit", "freshmenu", "licious", "bigbasket daily"
+      "behrouz", "eatfit", "freshmenu",       "licious", "irctc e-catering", "irctcecatering", "paytmirctcecatering"
     ]
   },
   
@@ -200,7 +211,8 @@
     "category": "Food & Dining",
     "subcategory": "Groceries",
     "merchants": [
-      "bigbasket", "blinkit", "grofers", "jiomart", "amazon fresh",
+      "bigbasket", "bbnow", "bb now", "innovative retail", "blinkit", "grofers", "jiomart", "amazon fresh",
+      "swiggy instamart",
       "nature basket", "dmart", "more supermarket", "reliance fresh",
       "spencer", "star bazaar", "nilgiris", "foodhall", "hypercity",
       "ratnadeep", "heritage fresh", "easyday", "spar"
@@ -215,7 +227,10 @@
       "taco bell", "starbucks", "cafe coffee day", "ccd", "barista",
       "barbeque nation", "mainland china", "absolute barbecue", "ab's",
       "paradise biryani", "haldiram", "bikanervala", "sagar ratna",
-      "saravana bhavan", "mtr", "adyar ananda bhavan", "a2b", "sangeetha"
+      "california burrito", "bengaluru pho",
+      "saravana bhavan", "mtr", "adyar ananda bhavan", "a2b", "sangeetha",
+      "corner house", "cornerhouseicecreams", "eversub india", "subwayoffline",
+      "hmshost services india", "hmshost"
     ]
   },
   
@@ -235,7 +250,7 @@
     "merchants": [
       "croma", "reliance digital", "vijay sales", "samsung store", "mi store",
       "apple store", "oneplus store", "poorvika", "sangeetha mobiles",
-      "lot mobiles", "big c mobiles"
+      "lot mobiles", "big c mobiles", "a o smith", "aosmithindia"
     ]
   },
   
@@ -244,7 +259,7 @@
     "subcategory": "Clothing & Fashion",
     "merchants": [
       "max fashion", "lifestyle", "pantaloons", "westside", "shoppers stop",
-      "central", "brand factory", "reliance trends", "v mart", "fbb",
+      "central", "brand factory", "reliance trends", "trends", "v mart", "fbb",
       "raymond", "peter england", "louis philippe", "van heusen", "allen solly",
       "zara", "h&m", "levis", "pepe jeans", "being human"
     ]
@@ -270,12 +285,46 @@
   },
   
   "travel_booking": {
-    "category": "Transportation",
-    "subcategory": "Travel & Booking",
+    "category": "Travel",
+    "subcategory": "Travel Booking",
     "merchants": [
-      "makemytrip", "goibibo", "cleartrip", "yatra", "ixigo", "easemytrip",
-      "redbus", "abhibus", "via", "air india", "indigo", "spicejet",
-      "vistara", "akasa air", "air asia", "go first"
+      "makemytrip", "make my trip", "goibibo", "cleartrip", "yatra", "ixigo", "easemytrip",
+      "via", "cochin international", "cochin airport", "kochi airport"
+    ]
+  },
+
+  "rail_travel": {
+    "category": "Travel",
+    "subcategory": "Rail & Train",
+    "merchants": [
+      "irctc", "irctc eticketing", "irctc e-ticketing", "indian railway catering and tourism"
+    ]
+  },
+
+  "airlines": {
+    "category": "Travel",
+    "subcategory": "Flights",
+    "merchants": [
+      "air india", "indigo", "spicejet", "vistara", "akasa air", "air asia", "go first"
+    ]
+  },
+
+  "intercity_bus": {
+    "category": "Travel",
+    "subcategory": "Intercity Bus",
+    "merchants": [
+      "redbus", "abhibus"
+    ]
+  },
+
+  "hotel_accommodation": {
+    "category": "Travel",
+    "subcategory": "Hotels & Accommodation",
+    "merchants": [
+      "oyo rooms", "airbnb", "treebo hotels", "fabhotels", "taj hotels",
+      "itc hotels", "oberoi hotels", "lemon tree hotels", "marriott",
+      "hyatt", "radisson hotels", "vivanta", "sarovar hotels",
+      "sterling resorts"
     ]
   },
   
@@ -290,7 +339,7 @@
   },
   
   "telecom_providers": {
-    "category": "Utilities",
+    "category": "Telecom",
     "subcategory": "Mobile & Phone",
     "merchants": [
       "airtel", "jio", "vodafone", "vi", "bsnl", "mtnl", "tata teleservices"
@@ -298,7 +347,7 @@
   },
   
   "internet_providers": {
-    "category": "Utilities",
+    "category": "Telecom",
     "subcategory": "Internet & Broadband",
     "merchants": [
       "act fibernet", "jio fiber", "airtel xstream", "hathway", "tikona",
@@ -313,6 +362,14 @@
     "merchants": [
       "indane", "bharat gas", "hp gas", "igl", "mahanagar gas", "mgl",
       "adani gas", "gail gas", "gujarat gas", "sabarmati gas"
+    ]
+  },
+
+  "dth_providers": {
+    "category": "Telecom",
+    "subcategory": "DTH & Cable",
+    "merchants": [
+      "tata sky", "dish tv", "airtel dth", "videocon d2h", "sun direct"
     ]
   },
   
@@ -352,6 +409,114 @@
     "merchants": [
       "urban company", "urbanclap", "housejoy", "zimmber", "bro4u",
       "mr right", "yes madam", "helping hands"
+    ]
+  },
+
+  "bakeries": {
+    "category": "Food & Dining",
+    "subcategory": "Restaurants",
+    "merchants": [
+      "jayaram bakery", "sri vinayaga bakery", "karachi bakery", "iyengar bakery",
+      "hot breads", "monginis", "theobroma", "wenger", "karachi sweets",
+      "anand sweets", "a1 bakery", "modern bakery", "daily bread"
+    ]
+  },
+
+  "local_food_outlets": {
+    "category": "Food & Dining",
+    "subcategory": "Restaurants",
+    "merchants": [
+      "brewberry", "bologna", "wishvish foods", "littile italy food",
+      "little italy", "arumugam fruit shop", "lemon green",
+      "m s lemon green", "gangabai firm"
+    ]
+  },
+
+  "local_pharmacies": {
+    "category": "Healthcare",
+    "subcategory": "Pharmacy",
+    "merchants": [
+      "shree maruthi chemist", "maruthi chemist", "shree maruthi chemis",
+      "adhventha pharma", "m s adhventha pharma",
+      "sangeeth fillings", "sangeeth fillings st"
+    ]
+  },
+
+  "local_hospitals": {
+    "category": "Healthcare",
+    "subcategory": "Hospital",
+    "merchants": [
+      "sri kanchi kamakoti", "kamakoti hospital", "shanmukha hospital"
+    ]
+  },
+
+  "physiotherapy_wellness": {
+    "category": "Healthcare",
+    "subcategory": "Wellness & Fitness",
+    "merchants": [
+      "rejoice physiotherapy", "rejoice physio", "portea physiotherapy"
+    ]
+  },
+
+  "tour_operators": {
+    "category": "Travel",
+    "subcategory": "Tours & Activities",
+    "merchants": [
+      "anagha tours", "veena world", "kesari tours", "thomas cook",
+      "cox and kings", "sotc", "club mahindra"
+    ]
+  },
+
+  "auto_service": {
+    "category": "Transportation",
+    "subcategory": "Vehicle Service & Repair",
+    "merchants": [
+      "raja nissan", "nissan service", "maruti service", "hyundai service",
+      "toyota service", "honda service", "tata motors service"
+    ]
+  },
+
+  "subscription_services": {
+    "category": "Subscriptions",
+    "subcategory": "App Subscriptions",
+    "merchants": [
+      "apple services", "appleservices", "google cloud", "google one",
+      "microsoft 365", "adobe", "canva", "dropbox", "notion",
+      "telegram premium", "chatgpt", "openai"
+    ]
+  },
+
+  "local_retail": {
+    "category": "Shopping",
+    "subcategory": "Online Shopping",
+    "merchants": [
+      "j k enterprises", "jk enterprises", "shri sai baba empori",
+      "shankar and sons"
+    ]
+  },
+
+  "shopping_malls": {
+    "category": "Shopping",
+    "subcategory": "Local Shops & Vendors",
+    "merchants": [
+      "lulu international", "lulu mall"
+    ]
+  },
+
+  "government_services": {
+    "category": "Utilities",
+    "subcategory": "Government & Taxes",
+    "merchants": [
+      "income tax", "gst", "property tax", "passport seva"
+    ]
+  },
+
+  "education_institutions": {
+    "category": "Education",
+    "subcategory": "School Fees",
+    "merchants": [
+      "national centre for", "national center for", "ncfe",
+      "national centre for excellence", "nationalcentreforexcellence"
     ]
   }
 }

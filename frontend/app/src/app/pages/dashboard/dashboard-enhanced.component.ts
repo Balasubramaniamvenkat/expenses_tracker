@@ -16,6 +16,7 @@ import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatListModule } from '@angular/material/list';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { HttpClient } from '@angular/common/http';
 import { Subject, takeUntil, forkJoin } from 'rxjs';
 import { Chart, registerables, ChartEvent, ActiveElement } from 'chart.js';
@@ -27,8 +28,10 @@ interface DashboardSummary {
   totalIncome: number;
   totalExpenses: number;
   totalInvestments: number;
+  totalPlanned: number;
   netSavings: number;
   transactionCount: number;
+  monthsCovered: number;
   dateRange: {
     from: string;
     to: string;
@@ -40,6 +43,7 @@ interface DashboardSummary {
 interface CategoryData {
   name: string;
   amount: number;
+  averageMonthlyAmount: number;
   percentage: number;
   icon: string;
   color: string;
@@ -49,6 +53,7 @@ interface MonthlyTrend {
   month: string;
   income: number;
   expenses: number;
+  investments: number;
 }
 
 interface TrendComparison {
@@ -79,6 +84,7 @@ interface HierarchyCategory {
   icon: string;
   color: string;
   amount: number;
+  averageMonthlyAmount: number;
   percentage: number;
   transactionCount: number;
   subcategories: HierarchySubcategory[];
@@ -88,6 +94,7 @@ interface HierarchySubcategory {
   id: string;
   name: string;
   amount: number;
+  averageMonthlyAmount: number;
   percentage: number;
   percentageOfTotal: number;
   transactionCount: number;
@@ -99,6 +106,7 @@ interface HierarchySubcategory {
 interface HierarchyMerchant {
   name: string;
   amount: number;
+  averageMonthlyAmount: number;
   count: number;
   percentage: number;
   color: string;
@@ -117,6 +125,7 @@ interface HierarchyResponse {
   hierarchy: HierarchyCategory[];
   summary: {
     totalAmount: number;
+    monthsCovered: number;
     categoryCount: number;
     transactionCount: number;
     dateRange: { from: string; to: string };
@@ -126,6 +135,7 @@ interface HierarchyResponse {
 }
 
 type DrillLevel = 'category' | 'subcategory' | 'merchant';
+type BreakdownType = 'expense' | 'income' | 'investment';
 
 interface DrillState {
   level: DrillLevel;
@@ -155,7 +165,8 @@ interface DrillState {
     MatSidenavModule,
     MatListModule,
     MatChipsModule,
-    MatTooltipModule
+    MatTooltipModule,
+    MatButtonToggleModule
   ],
   templateUrl: './dashboard-enhanced.component.html',
   styleUrls: ['./dashboard-enhanced.component.scss']
@@ -164,6 +175,8 @@ export class DashboardEnhancedComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();
   private trendChart: Chart | null = null;
   private categoryChart: Chart | null = null;
+  private averageChart: Chart | null = null;
+  private dashboardLoadId = 0;
 
   // Expose Math for template use
   Math = Math;
@@ -172,7 +185,17 @@ export class DashboardEnhancedComponent implements OnInit, OnDestroy {
   summary: DashboardSummary | null = null;
   trendData: TrendData | null = null;
   hierarchyData: HierarchyResponse | null = null;
-  
+  incomeHierarchyData: HierarchyResponse | null = null;
+  investmentHierarchyData: HierarchyResponse | null = null;
+  private incomeTopCategories: CategoryData[] = [];
+  private investmentTopCategories: CategoryData[] = [];
+  isInvestmentHierarchyLoading = false;
+  investmentHierarchyError: string | null = null;
+  isIncomeHierarchyLoading = false;
+  incomeHierarchyError: string | null = null;
+
+  // Which side of the books the breakdown charts and category list show
+  breakdownType: BreakdownType = 'expense';
   // State
   isLoading = true;
   error: string | null = null;
@@ -203,11 +226,25 @@ export class DashboardEnhancedComponent implements OnInit, OnDestroy {
   isDrawerOpen = false;
   drawerTitle = '';
   drawerTransactions: TransactionItem[] = [];
+  drawerTotal = 0;
   drawerLoading = false;
+  drawerLoadingMore = false;
+  drawerError: string | null = null;
+  private drawerOffset = 0;
+  private drawerFilters: { category: string; subcategory?: string; merchant?: string } | null = null;
+  private readonly drawerPageSize = 50;
 
   // Chart data for current drill level
   currentChartData: any[] = [];
   currentDrillTotal: number = 0;  // Total amount for current drill level
+  averageChartData: any[] = [];
+  averageDrillState: DrillState = {
+    level: 'category',
+    categoryId: null,
+    categoryName: null,
+    subcategoryId: null,
+    subcategoryName: null
+  };
   
   private readonly API_BASE = 'http://localhost:8000';
 
@@ -222,21 +259,39 @@ export class DashboardEnhancedComponent implements OnInit, OnDestroy {
     this.destroy$.complete();
     this.trendChart?.destroy();
     this.categoryChart?.destroy();
+    this.averageChart?.destroy();
   }
 
   loadAllData(): void {
+    const loadId = ++this.dashboardLoadId;
     this.isLoading = true;
     this.error = null;
+    this.trendData = null;
+    this.hierarchyData = null;
+    this.incomeHierarchyData = null;
+    this.investmentHierarchyData = null;
+    this.incomeTopCategories = [];
+    this.investmentTopCategories = [];
+    this.isInvestmentHierarchyLoading = false;
+    this.investmentHierarchyError = null;
+    this.isIncomeHierarchyLoading = false;
+    this.incomeHierarchyError = null;
 
     const dateParams = this.getDateParams();
+    const summaryParams = new URLSearchParams(dateParams.replace(/^\?/, ''));
+    summaryParams.delete('transaction_type');
+    const summaryQuery = summaryParams.toString();
 
     forkJoin({
-      summary: this.http.get<DashboardSummary>(`${this.API_BASE}/api/dashboard/summary`),
+      summary: this.http.get<DashboardSummary>(
+        `${this.API_BASE}/api/dashboard/summary${summaryQuery ? `?${summaryQuery}` : ''}`
+      ),
       trends: this.http.get<TrendData>(`${this.API_BASE}/api/categories/trend-comparison`),
       hierarchy: this.http.get<HierarchyResponse>(`${this.API_BASE}/api/categories/hierarchy${dateParams}`)
     }).pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (data) => {
+          if (loadId !== this.dashboardLoadId) return;
           this.summary = data.summary;
           this.trendData = data.trends;
           this.hierarchyData = data.hierarchy;
@@ -244,19 +299,105 @@ export class DashboardEnhancedComponent implements OnInit, OnDestroy {
           
           // Reset drill state
           this.resetDrillState();
-          
-          setTimeout(() => this.createCharts(), 100);
+          this.resetAverageDrillState();
+          setTimeout(() => {
+            this.createCharts();
+            if (this.isIncomeView && !this.incomeHierarchyData) this.loadIncomeHierarchy();
+            if (this.isInvestmentView && !this.investmentHierarchyData) this.loadInvestmentHierarchy();
+          }, 100);
         },
         error: (err) => {
+          if (loadId !== this.dashboardLoadId) return;
           console.error('Dashboard API error:', err);
-          this.loadFallbackData();
+          this.loadFallbackData(loadId);
         }
       });
   }
 
-  private getDateParams(): string {
+  loadIncomeHierarchy(): void {
+    if (this.incomeHierarchyData || this.isIncomeHierarchyLoading) return;
+
+    const loadId = this.dashboardLoadId;
+    this.isIncomeHierarchyLoading = true;
+    this.incomeHierarchyError = null;
+    this.http.get<HierarchyResponse>(
+      `${this.API_BASE}/api/categories/hierarchy${this.getDateParams('income')}`
+    ).pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (data) => {
+          if (loadId !== this.dashboardLoadId) return;
+          this.isIncomeHierarchyLoading = false;
+          if (!data.success) {
+            this.incomeHierarchyError = data.message || 'Could not load the income breakdown.';
+            return;
+          }
+          this.incomeHierarchyData = data;
+          this.incomeTopCategories = data.hierarchy.map(category => ({
+            name: category.name,
+            amount: category.amount,
+            averageMonthlyAmount: category.averageMonthlyAmount,
+            percentage: category.percentage,
+            icon: category.icon,
+            color: category.color
+          }));
+          if (this.isIncomeView) {
+            this.createCategoryChart();
+            this.createAverageChart();
+          }
+        },
+        error: (err) => {
+          if (loadId !== this.dashboardLoadId) return;
+          console.error('Income hierarchy API error:', err);
+          this.isIncomeHierarchyLoading = false;
+          this.incomeHierarchyError = 'Could not load the income breakdown. Please try again.';
+        }
+      });
+  }
+
+  loadInvestmentHierarchy(): void {
+    if (this.investmentHierarchyData || this.isInvestmentHierarchyLoading) return;
+
+    const loadId = this.dashboardLoadId;
+    this.isInvestmentHierarchyLoading = true;
+    this.investmentHierarchyError = null;
+    this.http.get<HierarchyResponse>(
+      `${this.API_BASE}/api/categories/hierarchy${this.getDateParams('investment')}`
+    ).pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (data) => {
+          if (loadId !== this.dashboardLoadId) return;
+          this.isInvestmentHierarchyLoading = false;
+          if (!data.success) {
+            this.investmentHierarchyError = data.message || 'Could not load the investment breakdown.';
+            return;
+          }
+          this.investmentHierarchyData = data;
+          this.investmentTopCategories = data.hierarchy.map(category => ({
+            name: category.name,
+            amount: category.amount,
+            averageMonthlyAmount: category.averageMonthlyAmount,
+            percentage: category.percentage,
+            icon: category.icon,
+            color: category.color
+          }));
+          if (this.isInvestmentView) {
+            this.createCategoryChart();
+            this.createAverageChart();
+          }
+        },
+        error: (err) => {
+          if (loadId !== this.dashboardLoadId) return;
+          console.error('Investment hierarchy API error:', err);
+          this.isInvestmentHierarchyLoading = false;
+          this.investmentHierarchyError = 'Could not load the investment breakdown. Please try again.';
+        }
+      });
+  }
+
+  private getDateParams(type: BreakdownType = 'expense'): string {
+    const typeParam = `transaction_type=${type}`;
     if (this.selectedDateRange === 'all') {
-      return '?transaction_type=expense';
+      return `?${typeParam}`;
     }
     
     const now = new Date();
@@ -277,14 +418,14 @@ export class DashboardEnhancedComponent implements OnInit, OnDestroy {
         break;
       case 'custom':
         if (this.customStartDate && this.customEndDate) {
-          return `?start_date=${this.formatDate(this.customStartDate)}&end_date=${this.formatDate(this.customEndDate)}&transaction_type=expense`;
+          return `?start_date=${this.formatDate(this.customStartDate)}&end_date=${this.formatDate(this.customEndDate)}&${typeParam}`;
         }
-        return '?transaction_type=expense';
+        return `?${typeParam}`;
       default:
-        return '?transaction_type=expense';
+        return `?${typeParam}`;
     }
     
-    return `?start_date=${this.formatDate(startDate)}&end_date=${this.formatDate(now)}&transaction_type=expense`;
+    return `?start_date=${this.formatDate(startDate)}&end_date=${this.formatDate(now)}&${typeParam}`;
   }
 
   private formatDate(date: Date): string {
@@ -303,16 +444,18 @@ export class DashboardEnhancedComponent implements OnInit, OnDestroy {
     }
   }
 
-  private loadFallbackData(): void {
+  private loadFallbackData(loadId: number): void {
     this.http.get<DashboardSummary>(`${this.API_BASE}/api/dashboard/summary`)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (data) => {
+          if (loadId !== this.dashboardLoadId) return;
           this.summary = data;
           this.isLoading = false;
           setTimeout(() => this.createCharts(), 100);
         },
         error: () => {
+          if (loadId !== this.dashboardLoadId) return;
           this.error = 'Could not connect to the server. Please make sure the backend is running.';
           this.isLoading = false;
         }
@@ -323,6 +466,7 @@ export class DashboardEnhancedComponent implements OnInit, OnDestroy {
     if (!this.summary) return;
     this.createTrendChart();
     this.createCategoryChart();
+    this.createAverageChart();
   }
 
   private createTrendChart(): void {
@@ -334,6 +478,7 @@ export class DashboardEnhancedComponent implements OnInit, OnDestroy {
     let months: string[];
     let incomeData: number[];
     let expenseData: number[];
+    let investmentData: number[];
 
     if (this.summary.monthlyTrend && this.summary.monthlyTrend.length > 0) {
       months = this.summary.monthlyTrend.map(t => {
@@ -348,12 +493,14 @@ export class DashboardEnhancedComponent implements OnInit, OnDestroy {
       });
       incomeData = this.summary.monthlyTrend.map(t => t.income);
       expenseData = this.summary.monthlyTrend.map(t => t.expenses);
+      investmentData = this.summary.monthlyTrend.map(t => t.investments || 0);
     } else {
       const now = new Date();
       const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
       months = [monthNames[now.getMonth()]];
       incomeData = [this.summary.totalIncome];
-      expenseData = [this.summary.totalExpenses + this.summary.totalInvestments];
+      expenseData = [this.summary.totalExpenses];
+      investmentData = [this.summary.totalInvestments];
     }
 
     this.trendChart = new Chart(canvas, {
@@ -374,6 +521,14 @@ export class DashboardEnhancedComponent implements OnInit, OnDestroy {
             data: expenseData,
             borderColor: '#FF9800',
             backgroundColor: 'rgba(255, 152, 0, 0.1)',
+            fill: true,
+            tension: 0.4
+          },
+          {
+            label: 'Investments',
+            data: investmentData,
+            borderColor: '#2196F3',
+            backgroundColor: 'rgba(33, 150, 243, 0.1)',
             fill: true,
             tension: 0.4
           }
@@ -455,16 +610,191 @@ export class DashboardEnhancedComponent implements OnInit, OnDestroy {
     });
   }
 
+  private createAverageChart(): void {
+    const canvas = document.getElementById('averageChart') as HTMLCanvasElement;
+    if (!canvas) return;
+
+    this.averageChart?.destroy();
+    this.averageChartData = this.getAverageChartDataForCurrentLevel();
+    if (!this.averageChartData.length) return;
+
+    this.averageChart = new Chart(canvas, {
+      type: 'bar',
+      data: {
+        labels: this.averageChartData.map(item => item.name),
+        datasets: [{
+          label: 'Average per month',
+          data: this.averageChartData.map(item => item.averageMonthlyAmount),
+          backgroundColor: this.averageChartData.map(item => item.color),
+          borderRadius: 8,
+          borderSkipped: false,
+          barThickness: 22,
+          maxBarThickness: 28
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        layout: {
+          padding: { right: 18 }
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (context) =>
+                ` ${this.formatCurrency(Number(context.parsed.x))} / month`
+            }
+          }
+        },
+        scales: {
+          x: {
+            beginAtZero: true,
+            grid: { color: 'rgba(28, 42, 72, 0.06)' },
+            ticks: {
+              callback: (value) => '₹' + Number(value).toLocaleString('en-IN')
+            }
+          },
+          y: {
+            grid: { display: false },
+            ticks: {
+              color: '#344054',
+              font: { size: 12, weight: 500 }
+            }
+          }
+        },
+        onClick: (_event: ChartEvent, elements: ActiveElement[]) => {
+          if (elements.length) this.handleAverageChartClick(elements[0].index);
+        }
+      }
+    });
+  }
+
+  private getAverageChartDataForCurrentLevel(): any[] {
+    if (!this.activeHierarchyData?.hierarchy) {
+      if (this.isIncomeView || this.isInvestmentView) return [];
+      return (this.summary?.topCategories || []).map(category => ({
+        ...category,
+        id: category.name.replace(/\s+/g, '_').toLowerCase()
+      }));
+    }
+
+    const hierarchy = this.activeHierarchyData.hierarchy;
+    switch (this.averageDrillState.level) {
+      case 'category':
+        return hierarchy.map(category => ({
+          id: category.id,
+          name: category.name,
+          averageMonthlyAmount: category.averageMonthlyAmount,
+          color: category.color
+        }));
+      case 'subcategory': {
+        const category = hierarchy.find(item => item.id === this.averageDrillState.categoryId);
+        return (category?.subcategories || []).map(subcategory => ({
+          id: subcategory.id,
+          name: subcategory.name,
+          averageMonthlyAmount: subcategory.averageMonthlyAmount,
+          color: subcategory.color
+        }));
+      }
+      case 'merchant': {
+        const category = hierarchy.find(item => item.id === this.averageDrillState.categoryId);
+        const subcategory = category?.subcategories.find(
+          item => item.id === this.averageDrillState.subcategoryId
+        );
+        return (subcategory?.merchants || []).map(merchant => ({
+          id: merchant.name,
+          name: merchant.name,
+          averageMonthlyAmount: merchant.averageMonthlyAmount,
+          color: merchant.color
+        }));
+      }
+      default:
+        return [];
+    }
+  }
+
+  handleAverageChartClick(index: number): void {
+    const clickedItem = this.averageChartData[index];
+    if (!clickedItem) return;
+
+    switch (this.averageDrillState.level) {
+      case 'category':
+        this.averageDrillState = {
+          level: 'subcategory',
+          categoryId: clickedItem.id,
+          categoryName: clickedItem.name,
+          subcategoryId: null,
+          subcategoryName: null
+        };
+        this.createAverageChart();
+        break;
+      case 'subcategory':
+        this.averageDrillState = {
+          ...this.averageDrillState,
+          level: 'merchant',
+          subcategoryId: clickedItem.id,
+          subcategoryName: clickedItem.name
+        };
+        this.createAverageChart();
+        break;
+      case 'merchant':
+        this.openTransactionDrawer(clickedItem, this.averageDrillState);
+        break;
+    }
+  }
+
+  drillUpAverage(): void {
+    if (this.averageDrillState.level === 'merchant') {
+      this.averageDrillState = {
+        ...this.averageDrillState,
+        level: 'subcategory',
+        subcategoryId: null,
+        subcategoryName: null
+      };
+    } else if (this.averageDrillState.level === 'subcategory') {
+      this.resetAverageDrillState();
+    }
+    this.createAverageChart();
+  }
+
+  resetAverageDrillState(): void {
+    this.averageDrillState = {
+      level: 'category',
+      categoryId: null,
+      categoryName: null,
+      subcategoryId: null,
+      subcategoryName: null
+    };
+  }
+
+  getAverageBreadcrumb(): string[] {
+    const crumbs = ['All Categories'];
+    if (this.averageDrillState.categoryName) crumbs.push(this.averageDrillState.categoryName);
+    if (this.averageDrillState.subcategoryName) crumbs.push(this.averageDrillState.subcategoryName);
+    return crumbs;
+  }
+
+  onAverageBreadcrumbClick(index: number): void {
+    if (index === 0) {
+      this.resetAverageDrillState();
+      this.createAverageChart();
+    } else if (index === 1 && this.averageDrillState.level === 'merchant') {
+      this.drillUpAverage();
+    }
+  }
+
   private getChartDataForCurrentLevel(): any[] {
-    if (!this.hierarchyData?.hierarchy) {
-      // Fallback to summary data
-      if (this.summary?.topCategories) {
+    if (!this.activeHierarchyData?.hierarchy) {
+      // Fallback to summary data (expenses only)
+      if (!this.isIncomeView && !this.isInvestmentView && this.summary?.topCategories) {
         return this.summary.topCategories.filter(c => c.name !== 'Income');
       }
       return [];
     }
 
-    const hierarchy = this.hierarchyData.hierarchy;
+    const hierarchy = this.activeHierarchyData.hierarchy;
 
     switch (this.drillState.level) {
       case 'category':
@@ -596,42 +926,82 @@ export class DashboardEnhancedComponent implements OnInit, OnDestroy {
     }
   }
 
-  openTransactionDrawer(item: any): void {
-    this.isDrawerOpen = true;
-    this.drawerLoading = true;
-    this.drawerTitle = `${item.name} - Transactions`;
-    
-    // Get transactions from hierarchy data
-    if (this.hierarchyData?.hierarchy && this.drillState.categoryId) {
-      const category = this.hierarchyData.hierarchy.find(c => c.id === this.drillState.categoryId);
-      if (category && this.drillState.subcategoryId) {
-        const subcategory = category.subcategories.find(s => s.id === this.drillState.subcategoryId);
-        if (subcategory) {
-          this.drawerTransactions = subcategory.transactions.filter(
-            t => t.merchant.toLowerCase() === item.name.toLowerCase()
-          );
-        }
-      }
-    }
-    this.drawerLoading = false;
+  openTransactionDrawer(item: any, drillState: DrillState = this.drillState): void {
+    if (!drillState.categoryName || !drillState.subcategoryName) return;
+    this.loadDrawerTransactions(
+      `${this.API_BASE}/api/categories/transactions-by-category`,
+      {
+        category: drillState.categoryName,
+        subcategory: drillState.subcategoryName,
+        merchant: item.name
+      },
+      `${item.name} - Transactions`
+    );
   }
 
   openCategoryTransactions(categoryData: any): void {
+    this.loadDrawerTransactions(
+      `${this.API_BASE}/api/categories/transactions-by-category`,
+      { category: categoryData.name },
+      `${categoryData.name} - All Transactions`
+    );
+  }
+
+  private loadDrawerTransactions(
+    endpoint: string,
+    filters: { category: string; subcategory?: string; merchant?: string },
+    title: string
+  ): void {
+    this.drawerFilters = filters;
+    this.drawerOffset = 0;
+    this.drawerTotal = 0;
+    this.drawerTransactions = [];
+    this.drawerTitle = title;
     this.isDrawerOpen = true;
     this.drawerLoading = true;
-    this.drawerTitle = `${categoryData.name} - All Transactions`;
+    this.drawerLoadingMore = false;
+    this.drawerError = null;
+    this.fetchDrawerPage(endpoint, true);
+  }
 
-    const params = this.getDateParams().replace('?', '&');
-    this.http.get<any>(`${this.API_BASE}/api/categories/transactions-by-category?category=${categoryData.name}${params}`)
+  loadMoreDrawerTransactions(): void {
+    if (this.drawerLoadingMore || this.drawerLoading || this.drawerTransactions.length >= this.drawerTotal) return;
+    this.fetchDrawerPage(`${this.API_BASE}/api/categories/transactions-by-category`, false);
+  }
+
+  private fetchDrawerPage(endpoint: string, initialLoad: boolean): void {
+    if (!this.drawerFilters) return;
+    const dateFilters = new URLSearchParams(this.getDateParams().replace(/^\?/, ''));
+    const params = new URLSearchParams({
+      category: this.drawerFilters.category,
+      limit: String(this.drawerPageSize),
+      offset: String(this.drawerOffset)
+    });
+    if (this.drawerFilters.subcategory) params.set('subcategory', this.drawerFilters.subcategory);
+    if (this.drawerFilters.merchant) params.set('merchant', this.drawerFilters.merchant);
+    for (const key of ['start_date', 'end_date']) {
+      const value = dateFilters.get(key);
+      if (value) params.set(key, value);
+    }
+
+    this.drawerLoading = initialLoad;
+    this.drawerLoadingMore = !initialLoad;
+    this.http.get<{ transactions: TransactionItem[]; total: number }>(`${endpoint}?${params.toString()}`)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (data) => {
-          this.drawerTransactions = data.transactions || [];
+          const page = data.transactions || [];
+          this.drawerTransactions = initialLoad ? page : [...this.drawerTransactions, ...page];
+          this.drawerTotal = data.total ?? this.drawerTransactions.length;
+          this.drawerOffset += page.length;
           this.drawerLoading = false;
+          this.drawerLoadingMore = false;
         },
-        error: () => {
-          this.drawerTransactions = [];
+        error: (error) => {
+          console.error('Unable to load category transactions:', error);
+          this.drawerError = 'Could not load transactions. Please try again.';
           this.drawerLoading = false;
+          this.drawerLoadingMore = false;
         }
       });
   }
@@ -639,6 +1009,10 @@ export class DashboardEnhancedComponent implements OnInit, OnDestroy {
   closeDrawer(): void {
     this.isDrawerOpen = false;
     this.drawerTransactions = [];
+    this.drawerTotal = 0;
+    this.drawerFilters = null;
+    this.drawerOffset = 0;
+    this.drawerError = null;
   }
 
   // Trend helpers
@@ -683,6 +1057,76 @@ export class DashboardEnhancedComponent implements OnInit, OnDestroy {
 
   formatCurrency(value: number): string {
     return '₹' + value.toLocaleString('en-IN', { maximumFractionDigits: 0 });
+  }
+
+  get isIncomeView(): boolean {
+    return this.breakdownType === 'income';
+  }
+
+  get isInvestmentView(): boolean {
+    return this.breakdownType === 'investment';
+  }
+
+  get isActiveHierarchyLoading(): boolean {
+    if (this.isIncomeView) return this.isIncomeHierarchyLoading;
+    if (this.isInvestmentView) return this.isInvestmentHierarchyLoading;
+    return false;
+  }
+
+  get activeHierarchyError(): string | null {
+    if (this.isIncomeView) return this.incomeHierarchyError;
+    if (this.isInvestmentView) return this.investmentHierarchyError;
+    return null;
+  }
+
+  get activeBreakdownLabel(): string {
+    if (this.isIncomeView) return 'Income';
+    if (this.isInvestmentView) return 'Investments';
+    return 'Expenses';
+  }
+
+  get activeLoadingMessage(): string {
+    return `Loading ${this.activeBreakdownLabel.toLowerCase()} breakdown...`;
+  }
+
+  get activeNoDataMessage(): string {
+    if (this.isIncomeView) return 'No income for this period';
+    if (this.isInvestmentView) return 'No investments for this period';
+    return 'No expense categories for this period';
+  }
+
+  get activeUnavailableMessage(): string {
+    return `${this.activeBreakdownLabel} breakdowns are unavailable.`;
+  }
+
+  retryActiveHierarchy(): void {
+    if (this.isIncomeView) this.loadIncomeHierarchy();
+    else if (this.isInvestmentView) this.loadInvestmentHierarchy();
+  }
+
+  get activeHierarchyData(): HierarchyResponse | null {
+    if (this.isIncomeView) return this.incomeHierarchyData;
+    if (this.isInvestmentView) return this.investmentHierarchyData;
+    return this.hierarchyData;
+  }
+
+  // Categories listed under "Top ..." follow the active breakdown.
+  get topCategoryList(): CategoryData[] {
+    if (this.isIncomeView) return this.incomeTopCategories;
+    if (this.isInvestmentView) return this.investmentTopCategories;
+    return this.summary?.topCategories || [];
+  }
+
+  setBreakdownType(type: BreakdownType): void {
+    if (type === this.breakdownType) return;
+    this.breakdownType = type;
+    this.resetDrillState();
+    this.resetAverageDrillState();
+    this.closeDrawer();
+    this.createCategoryChart();
+    this.createAverageChart();
+    if (type === 'income' && !this.incomeHierarchyData) this.loadIncomeHierarchy();
+    if (type === 'investment' && !this.investmentHierarchyData) this.loadInvestmentHierarchy();
   }
 
   getSelectedDateRangeLabel(): string {

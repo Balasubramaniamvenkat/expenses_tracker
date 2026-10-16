@@ -8,6 +8,8 @@ from pydantic import BaseModel
 import pandas as pd
 import os
 import shutil
+import hashlib
+import tempfile
 import uuid
 from datetime import datetime
 import sys
@@ -24,18 +26,34 @@ sys.path.insert(0, src_dir)
 # Import backend modules
 # Import them individually to handle relative import issues in analysis.py
 try:
-    from data_extraction import extract_data_from_file, process_csv, get_all_transaction_data, save_processed_data
+    from data_extraction import (
+        SUPPORTED_STATEMENT_EXTENSIONS,
+        extract_data_from_file,
+        process_csv,
+        get_all_transaction_data,
+        get_account_name,
+        replace_processed_data,
+        set_active_statement_files,
+        clear_processed_data,
+    )
     print(f"✓ Imported data_extraction from {src_dir}")
 except ImportError as e:
     print(f"⚠️ Could not import data_extraction: {e}")
+    SUPPORTED_STATEMENT_EXTENSIONS = {'.csv', '.xls', '.xlsx'}
     def extract_data_from_file(file_path):
         return pd.DataFrame()
     def process_csv(file_path):
         return pd.DataFrame()
     def get_all_transaction_data():
         return pd.DataFrame()
-    def save_processed_data(df):
-        return False
+    def get_account_name(file_path):
+        return os.path.splitext(os.path.basename(file_path))[0]
+    def replace_processed_data(transactions):
+        raise RuntimeError("Statement data extraction is unavailable.")
+    def set_active_statement_files(file_names):
+        raise RuntimeError("Statement data extraction is unavailable.")
+    def clear_processed_data():
+        raise RuntimeError("Statement data extraction is unavailable.")
 
 try:
     from categories import categorize_transaction
@@ -44,6 +62,8 @@ except ImportError as e:
     print(f"⚠️ Could not import categories: {e}")
     def categorize_transaction(desc):
         return "Other"
+
+from refined_categories import get_category_group
 
 # Define a simple calculate_summary_statistics since analysis.py has relative imports
 def calculate_summary_statistics(df: pd.DataFrame) -> dict:
@@ -59,8 +79,48 @@ def calculate_summary_statistics(df: pd.DataFrame) -> dict:
         }
     
     total = len(df)
-    income = df[df['Amount'] > 0]['Amount'].sum() if 'Amount' in df.columns else 0
-    expenses = abs(df[df['Amount'] < 0]['Amount'].sum()) if 'Amount' in df.columns else 0
+    if 'Category' not in df.columns:
+        df['Category'] = ''
+    if 'Description' in df.columns and 'Amount' in df.columns:
+        missing_categories = (
+            df['Category'].isna()
+            | df['Category'].astype(str).str.strip().eq('')
+        )
+        for index in df.index[missing_categories]:
+            result = categorize_transaction(
+                str(df.at[index, 'Description']),
+                float(df.at[index, 'Amount'])
+            )
+            df.at[index, 'Category'] = (
+                result.get('category', 'Other')
+                if isinstance(result, dict)
+                else str(result or 'Other')
+            )
+
+    if 'Amount' in df.columns:
+        category_groups = df['Category'].map(get_category_group)
+        income = df.loc[
+            df['Amount'].gt(0) & category_groups.eq('Income'),
+            'Amount'
+        ].sum()
+        expenses = abs(df.loc[
+            df['Amount'].lt(0) & category_groups.eq('Expense'),
+            'Amount'
+        ].sum())
+        investments = abs(df.loc[
+            df['Amount'].lt(0) & category_groups.eq('Investment'),
+            'Amount'
+        ].sum())
+        planned = abs(df.loc[
+            df['Amount'].lt(0) & category_groups.eq('Planned'),
+            'Amount'
+        ].sum())
+        transfers = abs(df.loc[
+            df['Amount'].lt(0) & category_groups.eq('Transfer'),
+            'Amount'
+        ].sum())
+    else:
+        income = expenses = investments = planned = transfers = 0
     
     # Calculate date range
     date_range = None
@@ -93,6 +153,9 @@ def calculate_summary_statistics(df: pd.DataFrame) -> dict:
         'total_transactions': total,
         'total_income': float(income),
         'total_expenses': float(expenses),
+        'total_investments': float(investments),
+        'total_planned': float(planned),
+        'total_transfers': float(transfers),
         'net_amount': float(income - expenses),
         'date_range': date_range,
         'months_covered': months_covered
@@ -117,6 +180,7 @@ class BatchUploadResult(BaseModel):
     total_files: int
     successful_uploads: int
     failed_uploads: int
+    dataset_replaced: bool
     results: List[FileProcessingResult]
     overall_summary: Optional[dict] = None
 
@@ -132,44 +196,92 @@ def ensure_inputs_directory():
         os.makedirs(inputs_dir)
     return inputs_dir
 
-def validate_csv_file(file: UploadFile) -> bool:
-    """Validate that the uploaded file is a CSV"""
+def validate_statement_file(file: UploadFile) -> bool:
+    """Validate supported bank statement file formats."""
     if not file.filename:
         return False
-    
-    # Check file extension
-    if not file.filename.lower().endswith('.csv'):
-        return False
-    
-    # Check content type (optional, as browsers may send different MIME types)
-    valid_content_types = [
-        'text/csv',
-        'application/csv',
-        'text/plain',
-        'application/vnd.ms-excel'
-    ]
-    
-    return True  # Be lenient with content type checking
 
-def save_uploaded_file(file: UploadFile) -> str:
-    """Save uploaded file to inputs directory and return the path"""
+    extension = os.path.splitext(file.filename)[1].lower()
+    return extension in SUPPORTED_STATEMENT_EXTENSIONS
+
+def _file_content_digest(file_object) -> str:
+    digest = hashlib.sha256()
+    file_object.seek(0)
+    while True:
+        chunk = file_object.read(1024 * 1024)
+        if not chunk:
+            break
+        digest.update(chunk)
+    file_object.seek(0)
+    return digest.hexdigest()
+
+
+def _find_existing_file_by_digest(digest: str, inputs_dir_path: str) -> Optional[str]:
+    for filename in sorted(os.listdir(inputs_dir_path)):
+        if os.path.splitext(filename)[1].lower() not in SUPPORTED_STATEMENT_EXTENSIONS:
+            continue
+        existing_path = os.path.join(inputs_dir_path, filename)
+        try:
+            with open(existing_path, 'rb') as existing_file:
+                if _file_content_digest(existing_file) == digest:
+                    return existing_path
+        except PermissionError:
+            print(f"Warning: Could not inspect locked statement file for duplicates: {filename}")
+    return None
+
+
+def save_uploaded_file(
+    file: UploadFile,
+    reserved_file_names: Optional[set[str]] = None,
+) -> tuple[str, bool]:
+    """Save by original name, reusing identical content already in the input folder."""
     inputs_dir_path = ensure_inputs_directory()
-    
-    # Generate unique filename with timestamp
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    original_name = file.filename or "unknown.csv"
-    name_without_ext = os.path.splitext(original_name)[0]
-    
-    unique_filename = f"{name_without_ext}_{timestamp}.csv"
-    file_path = os.path.join(inputs_dir_path, unique_filename)
-    
-    # Save file
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-    
-    return file_path
+    original_name = os.path.basename(file.filename or "unknown.csv")
+    name_without_ext, extension = os.path.splitext(original_name)
+    normalized_name = f"{name_without_ext}{extension.lower()}"
+    digest = _file_content_digest(file.file)
 
-def process_uploaded_file(file_path: str, original_filename: str) -> FileProcessingResult:
+    existing_content_path = _find_existing_file_by_digest(digest, inputs_dir_path)
+    if existing_content_path:
+        return existing_content_path, True
+
+    if reserved_file_names is None:
+        reserved_file_names = set()
+    target_name = normalized_name
+    if target_name in reserved_file_names:
+        suffix = 2
+        while True:
+            target_name = f"{name_without_ext}_{suffix}{extension.lower()}"
+            target_path = os.path.join(inputs_dir_path, target_name)
+            if target_name not in reserved_file_names and not os.path.exists(target_path):
+                break
+            suffix += 1
+
+    file_path = os.path.join(inputs_dir_path, target_name)
+    temporary_path = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode='wb',
+            dir=inputs_dir_path,
+            prefix='.upload-',
+            suffix='.tmp',
+            delete=False,
+        ) as temporary_file:
+            temporary_path = temporary_file.name
+            shutil.copyfileobj(file.file, temporary_file)
+        os.replace(temporary_path, file_path)
+    finally:
+        if temporary_path and os.path.exists(temporary_path):
+            os.remove(temporary_path)
+
+    reserved_file_names.add(target_name)
+    return file_path, False
+
+def process_uploaded_file(
+    file_path: str,
+    original_filename: str,
+    account_name: Optional[str] = None,
+) -> tuple[FileProcessingResult, Optional[pd.DataFrame]]:
     """Process uploaded file and return results"""
     try:
         # Get file size
@@ -193,14 +305,20 @@ def process_uploaded_file(file_path: str, original_filename: str) -> FileProcess
                 records_processed=0,
                 file_size=file_size,
                 errors=["File processing failed or no valid data found"]
-            )
+            ), None
+
+        if account_name:
+            df['Account'] = account_name
         
-        # Add categories if not present
-        if 'Category' not in df.columns and 'Description' in df.columns and 'Amount' in df.columns:
-            df['Category'] = df.apply(
-                lambda row: categorize_transaction(row['Description'], row['Amount'])['category'], 
-                axis=1
-            )
+        categories = df.apply(
+            lambda row: categorize_transaction(
+                str(row['Description']),
+                float(row['Amount']),
+            ),
+            axis=1,
+        )
+        df['Category'] = categories.map(lambda result: result.get('category', 'Other'))
+        df['Subcategory'] = categories.map(lambda result: result.get('subcategory', 'Uncategorized'))
         
         # Calculate summary statistics
         summary = calculate_summary_statistics(df)
@@ -225,7 +343,7 @@ def process_uploaded_file(file_path: str, original_filename: str) -> FileProcess
             file_size=file_size,
             preview_data=preview_data,
             summary=summary
-        )
+        ), df
         
     except Exception as e:
         return FileProcessingResult(
@@ -235,43 +353,49 @@ def process_uploaded_file(file_path: str, original_filename: str) -> FileProcess
             records_processed=0,
             file_size=os.path.getsize(file_path) if os.path.exists(file_path) else 0,
             errors=[str(e)]
-        )
+        ), None
 
 @router.post("/single", response_model=FileProcessingResult)
 async def upload_single_file(file: UploadFile = File(...)):
-    """Upload and process a single CSV file - replaces existing data"""
+    """Replace the generated dataset with this statement's transactions."""
     
     # Validate file
-    if not validate_csv_file(file):
+    if not validate_statement_file(file):
         raise HTTPException(
             status_code=400, 
-            detail="Invalid file type. Please upload a CSV file."
+            detail="Invalid file type. Please upload a CSV, XLS, or XLSX file."
         )
     
     try:
         # Save file
-        file_path = save_uploaded_file(file)
+        file_path, duplicate_file = save_uploaded_file(file)
         
         # Process file
-        result = process_uploaded_file(file_path, file.filename or "unknown.csv")
+        result, transactions = process_uploaded_file(
+            file_path,
+            file.filename or "unknown.csv",
+            get_account_name(file_path if duplicate_file else file.filename or "unknown.csv"),
+        )
         
-        # If upload was successful, save ONLY this file's data as processed data
-        # This replaces any existing data (user uploads new file = fresh start)
-        if result.success:
+        if result.success and transactions is not None:
             try:
-                # Extract data from just this uploaded file
-                df = extract_data_from_file(file_path)
-                if df is not None and not df.empty:
-                    # Add categories
-                    if 'Category' not in df.columns and 'Description' in df.columns and 'Amount' in df.columns:
-                        df['Category'] = df.apply(
-                            lambda row: categorize_transaction(row['Description'], row['Amount'])['category'], 
-                            axis=1
-                        )
-                    save_processed_data(df)
-                    print(f"✓ Saved {len(df)} transactions from uploaded file")
+                transactions['Source_File'] = os.path.basename(file_path)
+                processed_data = replace_processed_data(transactions)
+                set_active_statement_files([os.path.basename(file_path)])
+                result.summary = result.summary or {}
+                result.summary['dataset_replaced'] = True
+                result.summary['processed_transactions'] = len(processed_data)
+                if duplicate_file:
+                    result.message = (
+                        f"Identical file content already exists as {os.path.basename(file_path)}. "
+                        "The processed dataset was replaced using its transactions."
+                    )
+                print(f"✓ Replaced generated dataset with {len(processed_data)} transactions")
             except Exception as e:
-                print(f"Warning: Could not save processed data: {e}")
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Could not replace the processed dataset: {e}"
+                ) from e
         
         return result
         
@@ -283,25 +407,25 @@ async def upload_single_file(file: UploadFile = File(...)):
 
 @router.post("/batch", response_model=BatchUploadResult)
 async def upload_batch_files(files: List[UploadFile] = File(...)):
-    """Upload and process multiple CSV files"""
+    """Process a complete batch and replace the generated dataset."""
     
     if not files:
         raise HTTPException(status_code=400, detail="No files provided")
     
-    if len(files) > 10:  # Limit batch size
-        raise HTTPException(status_code=400, detail="Too many files. Maximum 10 files per batch.")
-    
     results = []
+    successful_file_names = []
+    new_transaction_frames = []
+    reserved_file_names = set()
     successful_uploads = 0
     failed_uploads = 0
     
     for file in files:
         # Validate each file
-        if not validate_csv_file(file):
+        if not validate_statement_file(file):
             result = FileProcessingResult(
                 filename=file.filename or "unknown",
                 success=False,
-                message="Invalid file type. Only CSV files are supported.",
+            message="Invalid file type. Supported formats are CSV, XLS, and XLSX.",
                 records_processed=0,
                 file_size=0,
                 errors=["Invalid file type"]
@@ -312,12 +436,24 @@ async def upload_batch_files(files: List[UploadFile] = File(...)):
         
         try:
             # Save and process file
-            file_path = save_uploaded_file(file)
-            result = process_uploaded_file(file_path, file.filename or "unknown.csv")
+            file_path, duplicate_file = save_uploaded_file(file, reserved_file_names)
+            result, transactions = process_uploaded_file(
+                file_path,
+                file.filename or "unknown.csv",
+                get_account_name(file_path if duplicate_file else file.filename or "unknown.csv"),
+            )
             results.append(result)
             
-            if result.success:
+            if result.success and transactions is not None:
                 successful_uploads += 1
+                successful_file_names.append(os.path.basename(file_path))
+                transactions['Source_File'] = os.path.basename(file_path)
+                new_transaction_frames.append(transactions)
+                if duplicate_file:
+                    result.message = (
+                        f"Identical file content already exists as {os.path.basename(file_path)}. "
+                        "No extra file was saved; duplicate transactions will be skipped."
+                    )
             else:
                 failed_uploads += 1
                 
@@ -340,22 +476,31 @@ async def upload_batch_files(files: List[UploadFile] = File(...)):
         "failed_files": failed_uploads
     }
     
-    # If any uploads were successful, refresh the combined processed data
-    if successful_uploads > 0:
+    if successful_uploads > 0 and failed_uploads == 0:
         try:
-            # Get all transaction data and save as processed data
-            combined_df = get_all_transaction_data()
-            if not combined_df.empty:
-                save_processed_data(combined_df)
-                print(f"✓ Refreshed processed data with {len(combined_df)} total transactions")
-                overall_summary["total_combined_records"] = len(combined_df)
+            uploaded_transactions = pd.concat(new_transaction_frames, ignore_index=True, sort=False)
+            processed_data = replace_processed_data(uploaded_transactions)
+            set_active_statement_files(successful_file_names)
+            overall_summary["dataset_replaced"] = True
+            overall_summary["processed_transactions"] = len(processed_data)
+            print(f"✓ Replaced generated dataset with {len(processed_data)} transactions")
         except Exception as e:
-            print(f"Warning: Could not refresh processed data: {e}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Could not replace the processed dataset: {e}"
+            ) from e
+    else:
+        overall_summary["dataset_replaced"] = False
+        overall_summary["dataset_replacement_message"] = (
+            "The processed dataset was not replaced because one or more files failed. "
+            "Fix the failed files and upload the complete batch again."
+        )
     
     return BatchUploadResult(
         total_files=len(files),
         successful_uploads=successful_uploads,
         failed_uploads=failed_uploads,
+        dataset_replaced=overall_summary["dataset_replaced"],
         results=results,
         overall_summary=overall_summary
     )
@@ -364,46 +509,29 @@ async def upload_batch_files(files: List[UploadFile] = File(...)):
 async def get_account_summaries():
     """Get summary of all uploaded accounts"""
     try:
-        inputs_dir_path = ensure_inputs_directory()
-        
-        # Find all CSV files
-        csv_files = [f for f in os.listdir(inputs_dir_path) if f.lower().endswith('.csv')]
-        
-        if not csv_files:
+        df = get_all_transaction_data()
+        if df.empty:
             return []
-        
+
         summaries = []
-        for csv_file in csv_files:
-            file_path = os.path.join(inputs_dir_path, csv_file)
-            
-            try:
-                df = extract_data_from_file(file_path)
-                if df is not None and not df.empty:                    # Get account info
-                    account_name = df['Account'].iloc[0] if 'Account' in df.columns and not df.empty else csv_file
-                    transactions_count = len(df)
-                    total_amount = df['Amount'].sum() if 'Amount' in df.columns else 0
-                    
-                    # Get date range
-                    date_range = {"start": "", "end": ""}
-                    if 'Transaction Date' in df.columns:
-                        dates = pd.to_datetime(df['Transaction Date'], errors='coerce')
-                        dates = dates.dropna()
-                        if not dates.empty:
-                            date_range = {
-                                "start": dates.min().strftime("%Y-%m-%d"),
-                                "end": dates.max().strftime("%Y-%m-%d")
-                            }
-                    
-                    summaries.append(AccountSummary(
-                        account_name=str(account_name),
-                        transactions_count=transactions_count,
-                        total_amount=float(total_amount),
-                        date_range=date_range
-                    ))
-                    
-            except Exception as e:
-                print(f"Error processing {csv_file}: {e}")
-                continue
+        for account_name, account_df in df.groupby('Account', dropna=False):
+            dates = pd.to_datetime(
+                account_df['Transaction Date'],
+                errors='coerce'
+            ).dropna()
+            date_range = {"start": "", "end": ""}
+            if not dates.empty:
+                date_range = {
+                    "start": dates.min().strftime("%Y-%m-%d"),
+                    "end": dates.max().strftime("%Y-%m-%d")
+                }
+
+            summaries.append(AccountSummary(
+                account_name=str(account_name),
+                transactions_count=len(account_df),
+                total_amount=float(account_df['Amount'].sum()),
+                date_range=date_range
+            ))
         
         return summaries
         
@@ -417,19 +545,31 @@ async def get_account_summaries():
 async def clear_uploaded_files():
     """Clear all uploaded files"""
     try:
+        set_active_statement_files([])
+        clear_processed_data()
         inputs_dir_path = ensure_inputs_directory()
         
-        # Remove all CSV files
-        csv_files = [f for f in os.listdir(inputs_dir_path) if f.lower().endswith('.csv')]
+        statement_files = [
+            filename for filename in os.listdir(inputs_dir_path)
+            if os.path.splitext(filename)[1].lower() in SUPPORTED_STATEMENT_EXTENSIONS
+        ]
         removed_count = 0
         
-        for csv_file in csv_files:
-            file_path = os.path.join(inputs_dir_path, csv_file)
+        removal_errors = []
+        for statement_file in statement_files:
+            file_path = os.path.join(inputs_dir_path, statement_file)
             try:
                 os.remove(file_path)
                 removed_count += 1
             except Exception as e:
-                print(f"Error removing {csv_file}: {e}")
+                print(f"Error removing {statement_file}: {e}")
+                removal_errors.append(statement_file)
+
+        if removal_errors:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Cleared the active dataset but could not remove: {', '.join(removal_errors)}"
+            )
         
         return {
             "message": f"Removed {removed_count} files",

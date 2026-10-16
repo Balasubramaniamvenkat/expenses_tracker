@@ -27,57 +27,25 @@ src_dir = os.path.join(os.path.dirname(current_dir), 'SRC')
 if src_dir not in sys.path:
     sys.path.insert(0, src_dir)
 
-# Import refined categorizer for colors and icons
-USE_REFINED = False
-REFINED_CATEGORIES = {}
-
-def _default_get_category_colors():
-    return {
-        'Income': '#4CAF50', 'Investments': '#2196F3', 'Insurance': '#00BCD4',
-        'Education': '#9C27B0', 'Healthcare': '#9966FF', 'Money Transfer': '#607D8B',
-        'Food & Dining': '#FF6384', 'Shopping': '#36A2EB', 'Transportation': '#FFCE56',
-        'Utilities': '#4BC0C0', 'Entertainment': '#FF9F40', 'Housing': '#8BC34A',
-        'Other': '#795548', 'Food': '#FF6384', 'LIC/Insurance': '#00BCD4'
-    }
-
-def _default_get_category_icons():
-    return {
-        'Income': '💰', 'Investments': '💎', 'Insurance': '🛡️', 'Education': '📚',
-        'Healthcare': '🏥', 'Money Transfer': '💸', 'Food & Dining': '🍔',
-        'Shopping': '🛒', 'Transportation': '🚗', 'Utilities': '💡',
-        'Entertainment': '🎬', 'Housing': '🏠', 'Other': '📦',
-        'Food': '🍔', 'LIC/Insurance': '🛡️'
-    }
-
-try:
-    from refined_categories import (
-        REFINED_CATEGORIES as _REFINED_CATEGORIES, 
-        get_category_colors as _get_category_colors, 
-        get_category_icons as _get_category_icons
-    )
-    REFINED_CATEGORIES = _REFINED_CATEGORIES
-    get_category_colors = _get_category_colors
-    get_category_icons = _get_category_icons
-    USE_REFINED = True
-except ImportError:
-    get_category_colors = _default_get_category_colors
-    get_category_icons = _default_get_category_icons
-
+# Import the shared categorizer so hierarchy and transaction filters use the
+# same category and subcategory assignments as the rest of the application.
+from refined_categories import (
+    MERCHANT_LOOKUP,
+    REFINED_CATEGORIES,
+    _extract_upi_payee_name,
+    _extract_upi_vpa_identifier,
+    _merchant_matches,
+    get_category_colors,
+    get_category_group,
+    get_category_icons,
+)
+from categories import categorize_transaction
+from data_extraction import get_processed_data_path as get_canonical_processed_data_path
 
 def get_processed_data_path() -> Optional[str]:
-    """Find the processed_data.csv file"""
-    possible_paths = [
-        'processed_data.csv',
-        '../processed_data.csv',
-        '../../processed_data.csv',
-        os.path.join(os.path.dirname(__file__), '..', '..', 'processed_data.csv')
-    ]
-    
-    for path in possible_paths:
-        full_path = os.path.abspath(path)
-        if os.path.exists(full_path):
-            return full_path
-    return None
+    """Return the single generated dataset path used by the upload pipeline."""
+    path = get_canonical_processed_data_path()
+    return path if os.path.exists(path) else None
 
 
 def load_transaction_data() -> Optional[pd.DataFrame]:
@@ -91,6 +59,25 @@ def load_transaction_data() -> Optional[pd.DataFrame]:
         df['Amount'] = pd.to_numeric(df['Amount'], errors='coerce')
         df['Transaction Date'] = pd.to_datetime(df['Transaction Date'], errors='coerce')
         df = df.dropna(subset=['Amount', 'Transaction Date'])
+        if 'Description' not in df.columns:
+            df['Description'] = ''
+        if 'Category' not in df.columns:
+            df['Category'] = ''
+        if 'Subcategory' not in df.columns:
+            df['Subcategory'] = ''
+
+        missing_categories = df['Category'].isna() | df['Category'].astype(str).str.strip().eq('')
+        if missing_categories.any():
+            for index in df.index[missing_categories]:
+                result = categorize_transaction(str(df.at[index, 'Description']), float(df.at[index, 'Amount']))
+                df.at[index, 'Category'] = result['category']
+                df.at[index, 'Subcategory'] = result['subcategory']
+
+        missing_subcategories = df['Subcategory'].isna() | df['Subcategory'].astype(str).str.strip().eq('')
+        if missing_subcategories.any():
+            for index in df.index[missing_subcategories]:
+                result = categorize_transaction(str(df.at[index, 'Description']), float(df.at[index, 'Amount']))
+                df.at[index, 'Subcategory'] = result['subcategory']
         return df
     except Exception as e:
         print(f"Error loading data: {e}")
@@ -113,79 +100,142 @@ def get_subcategory_color(parent_color: str, index: int) -> str:
 
 
 def extract_merchant_name(description: str) -> str:
-    """Extract merchant name from transaction description"""
-    description = description.upper()
-    
-    # Common patterns for UPI transactions
-    upi_patterns = [
-        r'UPI[-/]([A-Za-z0-9\s]+?)[-/@]',
-        r'UPI/[^/]+/([^/]+)',
-        r'TO\s+([A-Za-z\s]+)',
-    ]
-    
-    # Known merchants mapping
-    known_merchants = {
-        'SWIGGY': 'Swiggy',
-        'ZOMATO': 'Zomato',
-        'AMAZON': 'Amazon',
-        'FLIPKART': 'Flipkart',
-        'UBER': 'Uber',
-        'OLA': 'Ola',
-        'NETFLIX': 'Netflix',
-        'SPOTIFY': 'Spotify',
-        'HOTSTAR': 'Hotstar',
-        'PAYTM': 'Paytm',
-        'PHONEPE': 'PhonePe',
-        'GOOGLEPAY': 'Google Pay',
-        'GOOGLE PAY': 'Google Pay',
-        'ZERODHA': 'Zerodha',
-        'GROWW': 'Groww',
-        'UPSTOX': 'Upstox',
-        'DMART': 'DMart',
-        'BIGBASKET': 'Big Basket',
-        'RELIANCE': 'Reliance',
-        'AIRTEL': 'Airtel',
-        'JIO': 'Jio',
-        'VODAFONE': 'Vodafone',
-        'VI': 'Vi',
-        'BESCOM': 'BESCOM',
-        'BWSSB': 'BWSSB',
-        'IRCTC': 'IRCTC',
-        'MAKEMYTRIP': 'MakeMyTrip',
-        'HDFC': 'HDFC',
-        'ICICI': 'ICICI',
-        'SBI': 'SBI',
-        'AXIS': 'Axis Bank',
-        'KOTAK': 'Kotak',
-        'LIC': 'LIC',
-        'MUTUAL FUND': 'Mutual Fund',
-        'SIP': 'SIP Investment',
-        'ATM': 'ATM Withdrawal',
-        'NEFT': 'NEFT Transfer',
-        'IMPS': 'IMPS Transfer',
-        'RTGS': 'RTGS Transfer',
+    """Extract the UPI payee or a known merchant without mistaking the bank for it."""
+    if not isinstance(description, str):
+        description = '' if pd.isna(description) else str(description)
+    description = description.strip()
+    if not description:
+        return 'Other'
+
+    payee = _extract_upi_payee_name(description)
+    if payee:
+        normalized_payee = re.sub(r'\s+', ' ', payee).strip(' /-.')
+        payee_lower = normalized_payee.lower()
+        vpa = (_extract_upi_vpa_identifier(description) or '').lower()
+        if 'bundl technologies' in payee_lower and 'swiggy' in vpa:
+            return 'Swiggy Instamart' if 'instamart' in vpa else 'Swiggy'
+        display_aliases = {
+            'innovative retail': 'BigBasket',
+            'bigbasket': 'BigBasket',
+            'big basket': 'BigBasket',
+            'bbnow': 'BigBasket',
+            'bb now': 'BigBasket',
+            'swiggy instamart': 'Swiggy Instamart',
+            'swiggyinstamart': 'Swiggy Instamart',
+            'swiggy': 'Swiggy',
+            'zomato': 'Zomato',
+            'grofers india': 'Grofers',
+            'grofers': 'Grofers',
+            'natures basket': "Nature's Basket",
+            'cococart': 'CocoCart',
+            'hopcoms': 'Hopcoms',
+            'airtel': 'Airtel',
+            'jio': 'Jio',
+            'vodafone': 'Vodafone Idea (Vi)',
+            'vi': 'Vodafone Idea (Vi)',
+            'irctc': 'IRCTC',
+            'eversub india': 'Subway',
+        }
+        for alias in sorted(display_aliases, key=len, reverse=True):
+            if payee_lower == alias or payee_lower.startswith(alias + ' '):
+                return display_aliases[alias]
+        if description.upper().startswith('UPI/'):
+            return normalized_payee.title()
+        return normalized_payee.title()
+
+    description_lower = description.lower()
+    if description.upper().startswith('UPI'):
+        return 'UPI merchant'
+
+    merchant_aliases = {
+        'paytmirctcecatering': 'IRCTC Catering',
+        'payuirctc': 'IRCTC',
+        'cornerhouseicecreams': 'Corner House',
     }
-    
-    # Check for known merchants
-    for key, merchant in known_merchants.items():
-        if key in description:
-            return merchant
-    
-    # Try UPI patterns
-    for pattern in upi_patterns:
-        match = re.search(pattern, description, re.IGNORECASE)
-        if match:
-            name = match.group(1).strip()
-            if len(name) > 2:
-                return name.title()
-    
-    # Fallback: use first few meaningful words
-    words = description.split()
-    meaningful_words = [w for w in words[:3] if len(w) > 2 and not w.isdigit()]
-    if meaningful_words:
-        return ' '.join(meaningful_words[:2]).title()
-    
+    for alias in sorted(merchant_aliases, key=len, reverse=True):
+        if alias in description_lower:
+            return merchant_aliases[alias]
+
+    known_aliases = sorted(MERCHANT_LOOKUP, key=len, reverse=True)
+    for alias in known_aliases:
+        if _merchant_matches(alias, description_lower):
+            return alias.title()
+
+    words = [word for word in description.split() if len(word) > 2 and not word.isdigit()]
+    if words:
+        return ' '.join(words[:2]).title()
     return 'Other'
+
+
+INCOME_GROUP_BY_SUBCATEGORY = {
+    'Salary': 'Salary & Earnings',
+    'Dividends': 'Investment Income',
+    'Interest': 'Investment Income',
+    'Investment Returns': 'Investment Income',
+    'Refunds': 'Refunds & Other',
+    'Other Income': 'Refunds & Other',
+}
+INCOME_GROUP_STYLE = {
+    'Salary & Earnings': {'icon': '💼', 'color': '#2E7D32'},
+    'Investment Income': {'icon': '📈', 'color': '#1976D2'},
+    'Refunds & Other': {'icon': '↩️', 'color': '#8D6E63'},
+}
+
+
+def income_group_name(subcategory: Any) -> str:
+    """Map an Income subcategory to the top-level bucket shown in income drill-downs."""
+    if not isinstance(subcategory, str):
+        return 'Refunds & Other'
+    return INCOME_GROUP_BY_SUBCATEGORY.get(subcategory.strip(), 'Refunds & Other')
+
+
+def _tidy_name(text: str) -> str:
+    return ' '.join(word.capitalize() for word in re.sub(r'\s+', ' ', text).strip(' -/.').split())
+
+
+def extract_income_source(description: str) -> str:
+    """Name who paid money in (employer, company, broker, bank) from a credit narration."""
+    if not isinstance(description, str):
+        description = '' if pd.isna(description) else str(description)
+    text = re.sub(r'\s+', ' ', description).strip()
+    upper = text.upper()
+    if not text:
+        return 'Unknown source'
+
+    if upper.startswith(('NEFT CR-', 'NEFT CR/')):
+        parts = re.split(r'[-/]', text)
+        if len(parts) > 2 and parts[2].strip():
+            return _tidy_name(parts[2])
+
+    if upper.startswith('ACH C'):
+        company = re.sub(r'^ACH C-?\s*', '', text, flags=re.IGNORECASE)
+        company = re.split(r'-\d', company)[0]
+        company = re.sub(r'[\s\d]+$', '', company)
+        # A single glued token such as COLGATE2NDINTDIV2425 -> its leading letters
+        single_token = re.match(r'^([A-Za-z]{4,})\d', company)
+        if ' ' not in company and single_token:
+            company = single_token.group(1)
+        if company:
+            return _tidy_name(company)
+
+    if upper.startswith(('REV-', 'REV/')):
+        return 'UPI Reversal'
+
+    if re.search(r'\bINTEREST\b|\bINT\.?\s?PD\b', upper):
+        return 'Bank Interest'
+
+    dividend_issuer = re.match(r'^(.*?)\s+DIV\d', text, flags=re.IGNORECASE)
+    if dividend_issuer and dividend_issuer.group(1).strip():
+        return _tidy_name(dividend_issuer.group(1))
+
+    return extract_merchant_name(text)
+
+
+def extract_display_name(description: str, category: Any) -> str:
+    """Merchant for spending rows, paying source for income rows."""
+    if get_category_group(str(category)) == 'Income':
+        return extract_income_source(description)
+    return extract_merchant_name(description)
 
 
 def get_subcategory_from_description(description: str, category: str) -> str:
@@ -262,11 +312,33 @@ def get_subcategory_from_description(description: str, category: str) -> str:
     return 'Other'
 
 
+def _months_covered(
+    df: pd.DataFrame,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None
+) -> float:
+    dates = df['Transaction Date'].dropna()
+    if dates.empty and not (start_date and end_date):
+        return 1
+    first = pd.to_datetime(start_date) if start_date else dates.min()
+    last = pd.to_datetime(end_date) if end_date else dates.max()
+    months_between = (last.year - first.year) * 12 + last.month - first.month
+    if start_date and end_date:
+        if months_between == 0:
+            return max(1 / first.days_in_month, (last.day - first.day + 1) / first.days_in_month)
+        return (
+            (first.days_in_month - first.day + 1) / first.days_in_month
+            + months_between - 1
+            + last.day / last.days_in_month
+        )
+    return float(max(1, months_between + 1))
+
+
 @router.get("/hierarchy")
 async def get_category_hierarchy(
     start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
     end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
-    transaction_type: Optional[str] = Query("expense", description="Transaction type: income, expense, all")
+    transaction_type: Optional[str] = Query("expense", description="Transaction type: income, expense, investment, all")
 ) -> Dict[str, Any]:
     """
     Get hierarchical category data for drill-down charts
@@ -292,21 +364,34 @@ async def get_category_hierarchy(
     if start_date:
         df = df[df['Transaction Date'] >= pd.to_datetime(start_date)]
     if end_date:
-        df = df[df['Transaction Date'] <= pd.to_datetime(end_date)]
+        df = df[df['Transaction Date'] < pd.to_datetime(end_date) + pd.Timedelta(days=1)]
+    months_covered = _months_covered(df, start_date, end_date)
     
     # Filter by transaction type
+    group_column = 'Category'
     if transaction_type == "income":
-        df = df[df['Amount'] > 0]
+        df = df[
+            df['Amount'].gt(0)
+            & df['Category'].map(get_category_group).eq('Income')
+        ].copy()
+        # Every income row shares the category "Income", so bucket by source type.
+        df['IncomeGroup'] = df['Subcategory'].map(income_group_name)
+        group_column = 'IncomeGroup'
     elif transaction_type == "expense":
-        df = df[df['Amount'] < 0]
+        df = df[df['Amount'] < 0].copy()
         df['Amount'] = df['Amount'].abs()  # Make amounts positive for display
+        df = df[df['Category'].map(get_category_group).eq('Expense')]
+    elif transaction_type == "investment":
+        df = df[df['Amount'] < 0].copy()
+        df['Amount'] = df['Amount'].abs()
+        df = df[df['Category'].map(get_category_group).eq('Investment')]
     
     if df.empty:
         return {
             "success": True,
             "message": "No transactions found for the selected criteria",
             "hierarchy": [],
-            "summary": {}
+            "summary": {"monthsCovered": months_covered}
         }
     
     total_amount = df['Amount'].sum()
@@ -318,9 +403,12 @@ async def get_category_hierarchy(
     if 'Category' not in df.columns:
         df['Category'] = 'Other'
     
-    category_groups = df.groupby('Category')
+    category_groups = df.groupby(group_column)
     
     for category, cat_df in category_groups:
+        income_style = INCOME_GROUP_STYLE.get(str(category)) if group_column == 'IncomeGroup' else None
+        category_color = income_style['color'] if income_style else CATEGORY_COLORS.get(category, '#667eea')
+        category_icon = income_style['icon'] if income_style else CATEGORY_ICONS.get(category, '📊')
         cat_amount = float(cat_df['Amount'].sum())
         cat_percentage = (cat_amount / total_amount * 100) if total_amount > 0 else 0
         
@@ -333,10 +421,15 @@ async def get_category_hierarchy(
             amount = float(row['Amount'])
             
             # Determine subcategory
-            subcategory = get_subcategory_from_description(description, category)
+            saved_subcategory = row.get('Subcategory', '')
+            subcategory = (
+                str(saved_subcategory).strip()
+                if pd.notna(saved_subcategory) and str(saved_subcategory).strip()
+                else get_subcategory_from_description(description, row['Category'])
+            )
             
-            # Extract merchant
-            merchant = extract_merchant_name(description)
+            # Extract merchant (or paying source for income)
+            merchant = extract_display_name(description, row['Category'])
             
             # Initialize subcategory data if not exists
             if subcategory not in subcat_data:
@@ -364,6 +457,7 @@ async def get_category_hierarchy(
         # Convert subcategory data to list
         sorted_subcats = sorted(subcat_data.items(), key=lambda x: -x[1]['amount'])
         for idx, (subcat_name, subcat_info) in enumerate(sorted_subcats):
+            subcat_info['transactions'].sort(key=lambda txn: txn['date'], reverse=True)
             subcat_amount = float(subcat_info['amount'])
             subcat_percentage = (subcat_amount / cat_amount * 100) if cat_amount > 0 else 0
             
@@ -375,29 +469,32 @@ async def get_category_hierarchy(
                 merchants.append({
                     'name': merchant_name,
                     'amount': float(merchant_info['amount']),
+                    'averageMonthlyAmount': float(merchant_info['amount'] / months_covered),
                     'count': merchant_info['count'],
                     'percentage': round(merchant_percentage, 1),
-                    'color': get_subcategory_color(CATEGORY_COLORS.get(category, '#667eea'), len(merchants))
+                    'color': get_subcategory_color(category_color, len(merchants))
                 })
             
             subcategories.append({
                 'id': f"{category}_{subcat_name}".replace(' ', '_').lower(),
                 'name': subcat_name,
                 'amount': float(subcat_amount),
+                'averageMonthlyAmount': float(subcat_amount / months_covered),
                 'percentage': round(subcat_percentage, 1),
                 'percentageOfTotal': round((subcat_amount / total_amount * 100) if total_amount > 0 else 0, 1),
                 'transactionCount': len(subcat_info['transactions']),
-                'color': get_subcategory_color(CATEGORY_COLORS.get(category, '#667eea'), idx),
+                'color': get_subcategory_color(category_color, idx),
                 'merchants': merchants[:10],  # Top 10 merchants
-                'transactions': subcat_info['transactions'][:20]  # Last 20 transactions
+                'transactions': subcat_info['transactions'][:20]
             })
         
         hierarchy.append({
             'id': category.replace(' ', '_').lower(),
             'name': category,
-            'icon': CATEGORY_ICONS.get(category, '📊'),
-            'color': CATEGORY_COLORS.get(category, '#667eea'),
+            'icon': category_icon,
+            'color': category_color,
             'amount': float(cat_amount),
+            'averageMonthlyAmount': float(cat_amount / months_covered),
             'percentage': round(cat_percentage, 1),
             'transactionCount': len(cat_df),
             'subcategories': subcategories
@@ -409,6 +506,7 @@ async def get_category_hierarchy(
     # Calculate summary statistics
     summary = {
         'totalAmount': float(total_amount),
+        'monthsCovered': months_covered,
         'categoryCount': len(hierarchy),
         'transactionCount': len(df),
         'dateRange': {
@@ -456,24 +554,30 @@ async def get_transactions_by_category(
     if start_date:
         df = df[df['Transaction Date'] >= pd.to_datetime(start_date)]
     if end_date:
-        df = df[df['Transaction Date'] <= pd.to_datetime(end_date)]
+        df = df[df['Transaction Date'] < pd.to_datetime(end_date) + pd.Timedelta(days=1)]
     
-    # Filter by category
-    if 'Category' in df.columns:
-        df = df[df['Category'].str.lower() == category.lower()]
-    
-    # Filter by subcategory (re-derive from description)
+    # Filter by the same category fields used to build the hierarchy.
+    if category in INCOME_GROUP_STYLE:
+        # Income buckets are virtual: they group several Income subcategories.
+        df = df[
+            df['Amount'].gt(0)
+            & df['Category'].map(get_category_group).eq('Income')
+            & df['Subcategory'].map(income_group_name).eq(category)
+        ]
+    else:
+        df = df[df['Category'].fillna('').astype(str).str.lower() == category.lower()]
+
     if subcategory:
-        mask = df['Description'].apply(
-            lambda x: get_subcategory_from_description(x, category).lower() == subcategory.lower()
-        )
-        df = df[mask]
+        df = df[
+            df['Subcategory'].fillna('').astype(str).str.lower() == subcategory.lower()
+        ]
     
-    # Filter by merchant
+    # Filter by merchant (paying source for income rows)
     if merchant:
-        mask = df['Description'].apply(
-            lambda x: extract_merchant_name(x).lower() == merchant.lower()
-        )
+        mask = df.apply(
+            lambda row: extract_display_name(row['Description'], row['Category']).lower() == merchant.lower(),
+            axis=1,
+        ) if not df.empty else pd.Series(False, index=df.index)
         df = df[mask]
     
     total = len(df)
@@ -491,10 +595,9 @@ async def get_transactions_by_category(
             'date': row['Transaction Date'].strftime('%Y-%m-%d'),
             'description': row.get('Description', ''),
             'amount': float(row['Amount']),
-            'category': category,
-            'subcategory': get_subcategory_from_description(row.get('Description', ''), category),
-            'merchant': extract_merchant_name(row.get('Description', '')),
-            'balance': float(row.get('Balance', 0)) if 'Balance' in row else None
+            'category': row['Category'] if category in INCOME_GROUP_STYLE else category,
+            'subcategory': row.get('Subcategory') or get_subcategory_from_description(row.get('Description', ''), row['Category']),
+            'merchant': extract_display_name(row.get('Description', ''), row['Category']),
         })
     
     return {
@@ -541,18 +644,16 @@ async def get_trend_comparison(
     previous_df = df[(df['Transaction Date'] >= previous_period_start) & (df['Transaction Date'] < current_period_start)]
     
     def calculate_metrics(period_df: pd.DataFrame) -> Dict[str, float]:
-        income = period_df[period_df['Amount'] > 0]['Amount'].sum()
-        expenses = abs(period_df[period_df['Amount'] < 0]['Amount'].sum())
-        
-        # Investment detection
-        if 'Category' in period_df.columns:
-            investment_mask = period_df['Category'].str.lower().str.contains('investment', na=False)
-        else:
-            investment_keywords = ['zerodha', 'mutual fund', 'investment', 'stocks', 'gold', 'sip']
-            investment_mask = period_df['Description'].str.lower().str.contains('|'.join(investment_keywords), na=False)
-        
-        investments = abs(period_df[investment_mask]['Amount'].sum())
-        actual_expenses = expenses - investments
+        category_groups = period_df['Category'].map(get_category_group)
+        income = period_df[
+            period_df['Amount'].gt(0) & category_groups.eq('Income')
+        ]['Amount'].sum()
+        actual_expenses = abs(period_df[
+            period_df['Amount'].lt(0) & category_groups.eq('Expense')
+        ]['Amount'].sum())
+        investments = abs(period_df[
+            period_df['Amount'].lt(0) & category_groups.eq('Investment')
+        ]['Amount'].sum())
         
         return {
             'income': float(income),
