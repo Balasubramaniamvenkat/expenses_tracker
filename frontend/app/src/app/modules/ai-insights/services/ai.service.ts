@@ -20,10 +20,27 @@ export interface ChatMessage {
   content: string;
   timestamp?: Date;
   model?: string;
+  chart?: AIChart;
+  chartId?: string;
+}
+
+export type AIChartType = 'bar' | 'line' | 'doughnut';
+
+export interface AIChartDataset {
+  label: string;
+  data: number[];
+}
+
+export interface AIChart {
+  type: AIChartType;
+  title: string;
+  labels: string[];
+  datasets: AIChartDataset[];
 }
 
 export interface ChatResponse {
   response: string;
+  chart?: AIChart | null;
   model_used: string;
   timestamp: string;
 }

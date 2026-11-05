@@ -139,6 +139,7 @@ class TransactionMetrics(BaseModel):
     total_transactions: int
     total_income: float
     total_expenses: float
+    total_planned: float
     net_savings: float
     monthly_averages: Dict[str, Any]
     yearly_averages: Dict[str, Any]
@@ -437,12 +438,14 @@ async def get_transaction_metrics(
                 total_transactions=0,
                 total_income=0,
                 total_expenses=0,
+                total_planned=0,
                 net_savings=0,
                 monthly_averages={
                     "months": 0,
                     "transactions": 0,
                     "income": 0,
                     "expenses": 0,
+                    "planned": 0,
                     "savings": 0
                 },
                 yearly_averages={
@@ -450,6 +453,7 @@ async def get_transaction_metrics(
                     "transactions": 0,
                     "income": 0,
                     "expenses": 0,
+                    "planned": 0,
                     "savings": 0
                 }
             )
@@ -475,19 +479,20 @@ async def get_transaction_metrics(
                 else str(result or 'Other')
             )
 
-        # Calculate metrics from actual income and day-to-day expense groups;
-        # transfers and investment contributions are not spending or earnings.
+        # Keep planned outflows separate from day-to-day expenses and investments.
         total_transactions = len(filtered_df)
         groups = filtered_df['Category'].map(get_category_group)
         income_mask = filtered_df['Amount'].gt(0) & groups.eq('Income')
         expense_mask = filtered_df['Amount'].lt(0) & groups.eq('Expense')
+        planned_mask = filtered_df['Amount'].lt(0) & groups.eq('Planned')
         total_income = filtered_df.loc[income_mask, 'Amount'].sum()
         total_expenses = abs(filtered_df.loc[expense_mask, 'Amount'].sum())
+        total_planned = abs(filtered_df.loc[planned_mask, 'Amount'].sum())
         net_savings = total_income - total_expenses
         
         # Calculate date range for averages
-        monthly_averages = {"months": 0, "transactions": 0, "income": 0, "expenses": 0, "savings": 0}
-        yearly_averages = {"years": 0, "transactions": 0, "income": 0, "expenses": 0, "savings": 0}
+        monthly_averages = {"months": 0, "transactions": 0, "income": 0, "expenses": 0, "planned": 0, "savings": 0}
+        yearly_averages = {"years": 0, "transactions": 0, "income": 0, "expenses": 0, "planned": 0, "savings": 0}
         
         if not filtered_df.empty and 'Transaction Date' in filtered_df.columns:
             try:
@@ -504,6 +509,7 @@ async def get_transaction_metrics(
                             "transactions": total_transactions / months_diff,
                             "income": total_income / months_diff,
                             "expenses": total_expenses / months_diff,
+                            "planned": total_planned / months_diff,
                             "savings": net_savings / months_diff
                         }
                     
@@ -521,6 +527,7 @@ async def get_transaction_metrics(
                         "transactions": total_transactions / years_diff,
                         "income": total_income / years_diff,
                         "expenses": total_expenses / years_diff,
+                        "planned": total_planned / years_diff,
                         "savings": net_savings / years_diff
                     }
             except Exception as e:
@@ -530,6 +537,7 @@ async def get_transaction_metrics(
             total_transactions=total_transactions,
             total_income=float(total_income),
             total_expenses=float(total_expenses),
+            total_planned=float(total_planned),
             net_savings=float(net_savings),
             monthly_averages=monthly_averages,
             yearly_averages=yearly_averages

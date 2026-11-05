@@ -1,4 +1,4 @@
-import { Component, OnInit, ViewChild, AfterViewInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, ViewChild, AfterViewInit, OnDestroy, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, FormGroup } from '@angular/forms';
 import { MatTableDataSource, MatTableModule } from '@angular/material/table';
@@ -18,11 +18,19 @@ import { Transaction, TransactionFilter, TransactionSummary } from '../../../../
 import { TransactionService, FilterOptions, TransactionMetrics, TimelineData, TransactionListResponse } from '../../services/transaction.service';
 import { debounceTime, distinctUntilChanged, map } from 'rxjs/operators';
 import { Subscription, Subject } from 'rxjs';
+import {
+  ALL_ACCOUNTS_LABEL,
+  ALL_ACCOUNTS_VALUE,
+  AccountFilterOption,
+  createAccountFilterOptions
+} from '../../../../shared/account-filter-options';
 
 // Helper function to compare filter values for distinctUntilChanged
 function compareFilters(prev: any, curr: any): boolean {
   return JSON.stringify(prev) === JSON.stringify(curr);
 }
+
+type TransactionDateRange = '1m' | '3m' | '6m' | '1y' | 'all' | 'custom';
 import Chart from 'chart.js/auto';
 import { ChartConfiguration, ChartOptions, ChartData } from 'chart.js';
 
@@ -52,6 +60,7 @@ import { ChartConfiguration, ChartOptions, ChartData } from 'chart.js';
 export class TransactionListComponent implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild(MatPaginator) paginator!: MatPaginator;
   @ViewChild(MatSort) sort!: MatSort;
+  @ViewChild('timelineChart') timelineChartCanvas?: ElementRef<HTMLCanvasElement>;
 
   displayedColumns: string[] = [
     'date', 
@@ -70,7 +79,25 @@ export class TransactionListComponent implements OnInit, AfterViewInit, OnDestro
   
   // Filter options
   availableCategories: string[] = ['All Categories'];
-  availableAccounts: string[] = ['All Accounts'];
+  readonly allAccountsLabel = ALL_ACCOUNTS_LABEL;
+  readonly allAccountsValue = ALL_ACCOUNTS_VALUE;
+  availableAccounts: AccountFilterOption[] = [
+    { value: this.allAccountsValue, label: this.allAccountsLabel, accountNames: [] }
+  ];
+  selectedAccountValues: string[] = [this.allAccountsValue];
+  accountOptionsLoading = true;
+  accountOptionsError: string | null = null;
+  readonly dateRangeOptions: { value: TransactionDateRange; label: string }[] = [
+    { value: '1m', label: 'Last Month' },
+    { value: '3m', label: 'Last 3 Months' },
+    { value: '6m', label: 'Last 6 Months' },
+    { value: '1y', label: 'Last Year' },
+    { value: 'all', label: 'All Time' },
+    { value: 'custom', label: 'Custom Range' }
+  ];
+  selectedDateRange: TransactionDateRange = 'all';
+  customStartDate: Date | null = null;
+  customEndDate: Date | null = null;
   
   // Explicitly stored date strings for filtering
   private dateFromString: string | undefined = undefined;
@@ -78,6 +105,10 @@ export class TransactionListComponent implements OnInit, AfterViewInit, OnDestro
   
   private filterSubscription: Subscription | null = null;
   private unsubscribe$ = new Subject<void>();
+  private chartRenderTimer: number | null = null;
+  private readonly resizeHandler = (): void => {
+    this.timelineChart?.resize();
+  };
 
   constructor(
     private fb: FormBuilder,
@@ -132,42 +163,22 @@ export class TransactionListComponent implements OnInit, AfterViewInit, OnDestro
 
     // Initialize chart if data already exists
     if (this.timelineData) {
-      // Use longer delay and requestAnimationFrame for better timing
-      requestAnimationFrame(() => {
-        setTimeout(() => this.renderTimelineChart(), 500);
-      });
+      this.scheduleTimelineChartRender(500);
     }
 
     // Set up a resize listener for the chart
-    window.addEventListener('resize', () => {
-      if (this.timelineChart) {
-        this.timelineChart.resize();
-      }
-    });
+    window.addEventListener('resize', this.resizeHandler);
 
-    // Debug: Add click listener to category select to check if it's working
-    setTimeout(() => {
-      const categorySelect = document.querySelector('.category-filter mat-select');
-      if (categorySelect) {
-        console.log('Category select found:', categorySelect);
-        categorySelect.addEventListener('click', () => {
-          console.log('Category select clicked');
-          setTimeout(() => {
-            const panel = document.querySelector('.mat-mdc-select-panel');
-            console.log('Panel after click:', panel);
-            if (panel) {
-              console.log('Panel styles:', window.getComputedStyle(panel));
-            }
-          }, 100);
-        });
-      }
-    }, 1000);
   }
 
   ngOnDestroy(): void {
     // Clean up any subscriptions
     this.unsubscribe$.next();
     this.unsubscribe$.complete();
+    if (this.chartRenderTimer !== null) {
+      window.clearTimeout(this.chartRenderTimer);
+      this.chartRenderTimer = null;
+    }
     
     // Reset the state to avoid persistence issues
     this.dataSource.data = [];
@@ -182,13 +193,8 @@ export class TransactionListComponent implements OnInit, AfterViewInit, OnDestro
     }
 
     // Remove the resize listener
-    window.removeEventListener('resize', () => {
-      if (this.timelineChart) {
-        this.timelineChart.resize();
-      }
-    });
+    window.removeEventListener('resize', this.resizeHandler);
     
-    console.log('TransactionList component destroyed and cleaned up');
   }
 
   private setupFilterSubscription(): void {
@@ -216,7 +222,6 @@ export class TransactionListComponent implements OnInit, AfterViewInit, OnDestro
         const filtersChanged = JSON.stringify(currentFilters) !== JSON.stringify(previousFilters);
         
         if (filtersChanged) {
-          console.log('Filter values changed (not pagination):', currentFilters);
           previousFilters = { ...currentFilters };
           
           // Reset to first page only when actual filters change
@@ -234,17 +239,9 @@ export class TransactionListComponent implements OnInit, AfterViewInit, OnDestro
     this.isLoading = true;
     const filters: TransactionFilter = this.getFilters();
     
-    console.log('Component filters:', filters);
-    console.log('Form value:', this.filterForm.value);
-    
     // Get transactions
     this.transactionService.getFilteredTransactions(filters).subscribe({
       next: (response) => {
-        console.log('=== Transactions Response ===');
-        console.log('Full response:', response);
-        console.log('Pagination:', response.pagination);
-        console.log('Transactions count:', response.transactions?.length);
-        
         // Ensure we have transactions array even if empty
         if (!response.transactions) {
           response.transactions = [];
@@ -254,17 +251,15 @@ export class TransactionListComponent implements OnInit, AfterViewInit, OnDestro
         
         // Update paginator with server-side pagination info
         if (this.paginator && response.pagination) {
-          console.log('Updating paginator - total_items:', response.pagination.total_items);
           this.paginator.length = response.pagination.total_items;
           this.paginator.pageSize = response.pagination.page_size;
           this.paginator.pageIndex = response.pagination.current_page - 1;
-          console.log('Paginator after update - length:', this.paginator.length);
         }
         
         this.isLoading = false;
       },
       error: (error) => {
-        console.error('Error loading transactions:', error);
+        console.error('Error loading transactions:', error.message);
         this.dataSource.data = []; // Set empty array on error
         this.isLoading = false;
       }
@@ -276,54 +271,151 @@ export class TransactionListComponent implements OnInit, AfterViewInit, OnDestro
         this.metrics = metrics;
       },
       error: (error) => {
-        console.error('Error loading metrics:', error);
+        console.error('Error loading metrics:', error.message);
       }
     });
     
     // Get timeline data
     this.transactionService.getTransactionTimeline(filters).subscribe({
       next: (data) => {
-        console.log('Timeline data received:', data);
         this.timelineData = data;
-        
-        // Check if we have valid data for the chart
-        const hasValidData = data && 
-            ((data.credits && data.credits.length > 0) || 
-             (data.debits && data.debits.length > 0));
-        
-        console.log('Timeline has valid data:', hasValidData);
-        
-        // Wait for the next rendering cycle to make sure the DOM is ready
-        // Use requestAnimationFrame for better timing
-        requestAnimationFrame(() => {
-          setTimeout(() => this.renderTimelineChart(), 100);
-        });
+        this.scheduleTimelineChartRender(100);
       },
       error: (error) => {
-        console.error('Error loading timeline data:', error);
+        console.error('Error loading timeline data:', error.message);
         // Set empty data and still try to render an empty chart
         this.timelineData = { credits: [], debits: [] };
-        requestAnimationFrame(() => {
-          setTimeout(() => this.renderTimelineChart(), 100);
-        });
+        this.scheduleTimelineChartRender(100);
       }
     });
   }
 
   private loadFilterOptions(): void {
-    console.log('Loading filter options...');
+    this.accountOptionsLoading = true;
+    this.accountOptionsError = null;
     this.transactionService.getFilterOptions().subscribe({
       next: (options) => {
-        console.log('Filter options received:', options);
         this.availableCategories = options.categories;
-        this.availableAccounts = options.accounts;
-        console.log('Available categories:', this.availableCategories);
-        console.log('Available accounts:', this.availableAccounts);
+        this.availableAccounts = [
+          { value: this.allAccountsValue, label: this.allAccountsLabel, accountNames: [] },
+          ...createAccountFilterOptions(options.accounts)
+        ];
+        this.accountOptionsLoading = false;
       },
       error: (error) => {
-        console.error('Error loading filter options:', error);
+        console.error('Error loading filter options:', error.message);
+        this.accountOptionsError = 'Account options could not be loaded. Showing all accounts.';
+        this.accountOptionsLoading = false;
       }
     });
+  }
+
+  onDateRangeChange(range: TransactionDateRange = this.selectedDateRange): void {
+    this.selectedDateRange = range;
+    if (range === 'custom') return;
+
+    const endDate = new Date();
+    let startDate: Date | undefined;
+    switch (range) {
+      case '1m':
+        startDate = new Date(endDate.getFullYear(), endDate.getMonth() - 1, endDate.getDate());
+        break;
+      case '3m':
+        startDate = new Date(endDate.getFullYear(), endDate.getMonth() - 3, endDate.getDate());
+        break;
+      case '6m':
+        startDate = new Date(endDate.getFullYear(), endDate.getMonth() - 6, endDate.getDate());
+        break;
+      case '1y':
+        startDate = new Date(endDate.getFullYear() - 1, endDate.getMonth(), endDate.getDate());
+        break;
+      case 'all':
+        break;
+    }
+
+    this.setDateFilters(startDate, range === 'all' ? undefined : endDate);
+    this.loadTransactions();
+  }
+
+  onCustomStartDateChange(event: MatDatepickerInputEvent<Date>): void {
+    this.customStartDate = event.value ?? null;
+  }
+
+  onCustomEndDateChange(event: MatDatepickerInputEvent<Date>): void {
+    this.customEndDate = event.value ?? null;
+  }
+
+  applyCustomDateRange(): void {
+    if (!this.customStartDate || !this.customEndDate) return;
+    this.setDateFilters(this.customStartDate, this.customEndDate);
+    this.loadTransactions();
+  }
+
+  private setDateFilters(startDate?: Date, endDate?: Date): void {
+    this.dateFromString = startDate ? this.formatDateValue(startDate) : undefined;
+    this.dateToString = endDate ? this.formatDateValue(endDate) : undefined;
+    this.filterForm.patchValue({
+      date_from: startDate ?? null,
+      date_to: endDate ?? null,
+      page: 1
+    }, { emitEvent: false });
+
+    if (this.paginator) {
+      this.paginator.pageIndex = 0;
+    }
+  }
+
+  onAccountSelectionChange(selection: string[]): void {
+    const hadAllAccounts = this.selectedAccountValues.includes(this.allAccountsValue);
+    const selectedAllAccounts = selection.includes(this.allAccountsValue);
+
+    if (selectedAllAccounts && hadAllAccounts && selection.length > 1) {
+      this.selectedAccountValues = selection.filter(value => value !== this.allAccountsValue);
+    } else if (selectedAllAccounts || selection.length === 0) {
+      this.selectedAccountValues = [this.allAccountsValue];
+    } else {
+      this.selectedAccountValues = selection;
+    }
+
+    const accountNames = this.availableAccounts
+      .filter(option => this.selectedAccountValues.includes(option.value))
+      .flatMap(option => option.accountNames);
+    this.filterForm.patchValue({
+      accounts: accountNames.length ? [...new Set(accountNames)] : [this.allAccountsLabel],
+      page: 1
+    }, { emitEvent: false });
+
+    if (this.paginator) {
+      this.paginator.pageIndex = 0;
+    }
+    this.loadTransactions();
+  }
+
+  getSelectedAccountsLabel(): string {
+    if (!this.selectedAccountValues.length || this.selectedAccountValues.includes(this.allAccountsValue)) {
+      return this.allAccountsLabel;
+    }
+    if (this.selectedAccountValues.length > 1) {
+      return `${this.selectedAccountValues.length} accounts`;
+    }
+    return this.availableAccounts.find(option => option.value === this.selectedAccountValues[0])?.label
+      ?? 'Account';
+  }
+
+  getSelectedDateRangeLabel(): string {
+    return this.dateRangeOptions.find(option => option.value === this.selectedDateRange)?.label ?? 'All Time';
+  }
+
+  getDateRangeIcon(value: string): string {
+    const icons: Record<string, string> = {
+      '1m': 'today',
+      '3m': 'date_range',
+      '6m': 'event_note',
+      '1y': 'calendar_month',
+      'all': 'all_inclusive',
+      'custom': 'edit_calendar'
+    };
+    return icons[value] ?? 'calendar_today';
   }
 
   // Date change event handlers - capture dates directly when selected
@@ -331,10 +423,8 @@ export class TransactionListComponent implements OnInit, AfterViewInit, OnDestro
     if (event.value) {
       const d = event.value;
       this.dateFromString = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      console.log('Date FROM changed:', this.dateFromString);
     } else {
       this.dateFromString = undefined;
-      console.log('Date FROM cleared');
     }
   }
 
@@ -342,10 +432,8 @@ export class TransactionListComponent implements OnInit, AfterViewInit, OnDestro
     if (event.value) {
       const d = event.value;
       this.dateToString = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      console.log('Date TO changed:', this.dateToString);
     } else {
       this.dateToString = undefined;
-      console.log('Date TO cleared');
     }
   }
 
@@ -365,12 +453,6 @@ export class TransactionListComponent implements OnInit, AfterViewInit, OnDestro
       dateTo = this.formatDateValue(formValue.date_to);
     }
     
-    console.log('=== getFilters() ===');
-    console.log('dateFromString (stored):', this.dateFromString);
-    console.log('dateToString (stored):', this.dateToString);
-    console.log('Final dateFrom:', dateFrom);
-    console.log('Final dateTo:', dateTo);
-    
     const filters: TransactionFilter = {
       search_text: formValue.search_text?.trim() || undefined,
       date_from: dateFrom,
@@ -383,7 +465,6 @@ export class TransactionListComponent implements OnInit, AfterViewInit, OnDestro
       page_size: formValue.page_size || 50
     };
     
-    console.log('Generated filters:', filters);
     return filters;
   }
 
@@ -417,7 +498,7 @@ export class TransactionListComponent implements OnInit, AfterViewInit, OnDestro
     
     // Validate the date
     if (isNaN(d.getTime())) {
-      console.warn('Invalid date value:', value);
+      console.warn('Invalid date value in transaction filter.');
       return undefined;
     }
     
@@ -426,8 +507,6 @@ export class TransactionListComponent implements OnInit, AfterViewInit, OnDestro
   }
 
   applyFilters(): void {
-    console.log('Apply filters clicked, current form value:', this.filterForm.value);
-    console.log('Date strings - from:', this.dateFromString, 'to:', this.dateToString);
     // Reset to first page when applying filters
     if (this.paginator) {
       this.paginator.pageIndex = 0;
@@ -437,11 +516,13 @@ export class TransactionListComponent implements OnInit, AfterViewInit, OnDestro
   }
 
   clearFilters(): void {
-    console.log('Clearing all filters...');
-    
     // Reset the stored date strings
     this.dateFromString = undefined;
     this.dateToString = undefined;
+    this.selectedDateRange = 'all';
+    this.customStartDate = null;
+    this.customEndDate = null;
+    this.selectedAccountValues = [this.allAccountsValue];
     
     // Reset paginator first
     if (this.paginator) {
@@ -460,9 +541,6 @@ export class TransactionListComponent implements OnInit, AfterViewInit, OnDestro
       page: 1,
       page_size: 50
     }, { emitEvent: false });
-    
-    console.log('Filters cleared, form value:', this.filterForm.value);
-    
     // Reload all data without filters
     this.loadTransactions();
   }
@@ -481,7 +559,7 @@ export class TransactionListComponent implements OnInit, AfterViewInit, OnDestro
         window.URL.revokeObjectURL(url);
       },
       error: (error) => {
-        console.error('Error exporting transactions:', error);
+        console.error('Error exporting transactions:', error.message);
       }
     });
   }
@@ -493,7 +571,7 @@ export class TransactionListComponent implements OnInit, AfterViewInit, OnDestro
           this.loadTransactions();
         },
         error: (error: any) => {
-          console.error('Error deleting transaction:', error);
+          console.error('Error deleting transaction:', error.message);
           }
         });
     }
@@ -501,7 +579,6 @@ export class TransactionListComponent implements OnInit, AfterViewInit, OnDestro
 
   editTransaction(transaction: Transaction): void {
     // TODO: Open edit dialog
-    console.log('Edit transaction:', transaction);
   }
 
   formatAmount(amount: number): string {
@@ -520,8 +597,8 @@ export class TransactionListComponent implements OnInit, AfterViewInit, OnDestro
     return category;
   }
 
-  trackByAccount(index: number, account: string): string {
-    return account;
+  trackByAccount(index: number, account: AccountFilterOption): string {
+    return account.value;
   }
 
   // Comparison functions for mat-select
@@ -544,21 +621,23 @@ export class TransactionListComponent implements OnInit, AfterViewInit, OnDestro
     return selectedAccounts.includes(account);
   }
 
-  private renderTimelineChart(): void {
-    console.log('📊 Rendering Chart.js timeline chart...');
-    
-    // Check if chart container exists
-    const chartElement = document.getElementById('timelineChart') as HTMLCanvasElement;
-    if (!chartElement) {
-      console.error('❌ Timeline chart element not found in DOM');
-      // Retry with exponential backoff
-      setTimeout(() => this.renderTimelineChart(), 1000);
-      return;
+  private scheduleTimelineChartRender(delay: number): void {
+    if (this.chartRenderTimer !== null) {
+      window.clearTimeout(this.chartRenderTimer);
     }
+
+    this.chartRenderTimer = window.setTimeout(() => {
+      this.chartRenderTimer = null;
+      this.renderTimelineChart();
+    }, delay);
+  }
+
+  private renderTimelineChart(): void {
+    const chartElement = this.timelineChartCanvas?.nativeElement;
+    if (!chartElement?.isConnected) return;
     
     // Destroy previous chart if exists
     if (this.timelineChart) {
-      console.log('🔄 Destroying previous chart instance');
       this.timelineChart.destroy();
       this.timelineChart = null;
     }
@@ -572,14 +651,13 @@ export class TransactionListComponent implements OnInit, AfterViewInit, OnDestro
     
     // Validate timeline data
     if (!this.timelineData) {
-      console.log('⚠️ No timeline data available, creating empty chart');
       this.createEmptyChart(ctx);
       return;
     }
     
     // Validate data structure
     if (!this.timelineData.credits || !this.timelineData.debits) {
-      console.error('❌ Invalid timeline data structure:', this.timelineData);
+      console.error('Invalid transaction timeline data structure.');
       this.createEmptyChart(ctx);
       return;
     }
@@ -587,11 +665,8 @@ export class TransactionListComponent implements OnInit, AfterViewInit, OnDestro
     const credits = this.timelineData.credits || [];
     const debits = this.timelineData.debits || [];
     
-    console.log(`📈 Processing chart data: ${credits.length} credits, ${debits.length} debits`);
-    
     // If no data, show empty chart with message
     if (credits.length === 0 && debits.length === 0) {
-      console.log('📊 No data points to display');
       this.createEmptyChart(ctx);
       return;
     }
@@ -632,11 +707,11 @@ export class TransactionListComponent implements OnInit, AfterViewInit, OnDestro
       
       // Create the chart
       this.timelineChart = new Chart(ctx, chartConfig);
-      
-      console.log('✅ Chart.js timeline chart created successfully');
-      
     } catch (error) {
-      console.error('❌ Error creating Chart.js timeline chart:', error);
+      console.error(
+        'Error creating transaction timeline chart:',
+        error instanceof Error ? error.message : String(error)
+      );
       this.renderFallbackChart(ctx);
     }
   }
@@ -646,7 +721,7 @@ export class TransactionListComponent implements OnInit, AfterViewInit, OnDestro
       try {
         const dateValue = new Date(point.x);
         if (isNaN(dateValue.getTime())) {
-          console.warn('⚠️ Invalid date in credits:', point.x);
+          console.warn('Invalid date in transaction credit timeline point.');
           return null;
         }
         return {
@@ -657,7 +732,10 @@ export class TransactionListComponent implements OnInit, AfterViewInit, OnDestro
           originalDate: point.x
         };
       } catch (error) {
-        console.warn('⚠️ Error processing credit point:', point, error);
+        console.warn(
+          'Error processing transaction credit timeline point:',
+          error instanceof Error ? error.message : String(error)
+        );
         return null;
       }
     }).filter(point => point !== null);
@@ -666,7 +744,7 @@ export class TransactionListComponent implements OnInit, AfterViewInit, OnDestro
       try {
         const dateValue = new Date(point.x);
         if (isNaN(dateValue.getTime())) {
-          console.warn('⚠️ Invalid date in debits:', point.x);
+          console.warn('Invalid date in transaction debit timeline point.');
           return null;
         }
         return {
@@ -677,12 +755,13 @@ export class TransactionListComponent implements OnInit, AfterViewInit, OnDestro
           originalDate: point.x
         };
       } catch (error) {
-        console.warn('⚠️ Error processing debit point:', point, error);
+        console.warn(
+          'Error processing transaction debit timeline point:',
+          error instanceof Error ? error.message : String(error)
+        );
         return null;
       }
     }).filter(point => point !== null);
-    
-    console.log(`📊 Chart data processed: ${creditsData.length} credits, ${debitsData.length} debits`);
     return { creditsData, debitsData };
   }
   
@@ -790,8 +869,6 @@ export class TransactionListComponent implements OnInit, AfterViewInit, OnDestro
   }
   
   private createEmptyChart(ctx: CanvasRenderingContext2D): void {
-    console.log('📊 Creating empty Chart.js chart');
-    
     this.timelineChart = new Chart(ctx, {
       type: 'scatter',
       data: {
@@ -834,8 +911,6 @@ export class TransactionListComponent implements OnInit, AfterViewInit, OnDestro
   }
   
   private renderFallbackChart(ctx: CanvasRenderingContext2D): void {
-    console.log('📊 Rendering Chart.js fallback chart');
-    
     try {
       // Create a simple bar chart as fallback
       this.timelineChart = new Chart(ctx, {
@@ -891,10 +966,11 @@ export class TransactionListComponent implements OnInit, AfterViewInit, OnDestro
           }
         }
       });
-      
-      console.log('✅ Chart.js fallback chart created successfully');
     } catch (error) {
-      console.error('❌ Error creating Chart.js fallback chart:', error);
+      console.error(
+        'Error creating transaction fallback chart:',
+        error instanceof Error ? error.message : String(error)
+      );
     }
   }
   

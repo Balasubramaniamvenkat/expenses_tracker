@@ -3,98 +3,204 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Expenditure Categories - Tree Review</title>
+<title>Generic Category Tree</title>
 <style>
 :root{color-scheme:light;--ink:#172033;--muted:#667085;--line:#e3e8ef;--surface:#fff;--canvas:#f5f7fb;--accent:#3157a4}
-*{box-sizing:border-box}body{margin:0;background:var(--canvas);color:var(--ink);font:15px/1.5 Segoe UI,Arial,sans-serif}
-header{background:#14213d;color:#fff;padding:28px max(24px,calc((100vw - 1120px)/2)) 24px}
-h1{margin:0 0 6px;font-size:26px}header p{margin:0;color:#d5deef;max-width:850px}
-main{max-width:1120px;margin:24px auto;padding:0 20px 48px}.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
-input{flex:1;min-width:220px;padding:11px 13px;border:1px solid #cbd5e1;border-radius:8px;font:inherit;background:#fff}
-button{font:inherit;cursor:pointer}.tool{padding:9px 13px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:var(--ink)}.tool:hover{background:#edf2fb}
-.note{color:var(--muted);font-size:13px;margin:0 0 14px}.summary{font-weight:600;color:#344054;margin-left:auto}
-.tree{display:grid;gap:10px}.category{background:var(--surface);border:1px solid var(--line);border-left:5px solid var(--category-color,#667085);border-radius:10px;overflow:hidden;box-shadow:0 2px 7px #1018280a}
-.node-head{width:100%;display:flex;gap:12px;align-items:center;text-align:left;border:0;background:transparent;padding:14px 16px;color:inherit}.node-head:hover{background:#f8faff}.chevron{width:18px;color:var(--muted);transition:transform .15s}.node-head[aria-expanded=true] .chevron{transform:rotate(90deg)}
-.category-icon{font-size:21px;width:27px;text-align:center}.node-title{font-size:16px;font-weight:650}.meta{font-size:12px;color:var(--muted);display:block}.group{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:3px 8px;border-radius:999px;background:#eef2f7;color:#475467;margin-left:auto;white-space:nowrap}
-.children{padding:0 16px 14px 51px}.subcategory{border-top:1px solid var(--line)}.sub-head{width:100%;display:flex;align-items:center;gap:10px;text-align:left;padding:11px 8px;border:0;background:#fff;color:inherit}.sub-head:hover{background:#f8faff}.sub-title{font-weight:600}.count{font-size:12px;color:var(--muted);margin-left:auto;white-space:nowrap}.leaf-groups{padding:0 8px 14px 30px;display:grid;gap:9px}.leaf{border:1px solid #e7ebf1;background:#fafbfc;border-radius:7px;padding:9px 11px}.leaf-title{font-size:12px;text-transform:uppercase;letter-spacing:.04em;font-weight:700;color:#475467;margin-bottom:5px}.chips{display:flex;flex-wrap:wrap;gap:6px}.chip{font-size:12px;background:#edf1f7;color:#344054;padding:3px 8px;border-radius:5px;overflow-wrap:anywhere}.empty{font-size:13px;color:var(--muted)}.no-results{padding:24px;text-align:center;color:var(--muted);background:#fff;border-radius:10px;display:none}
+*{box-sizing:border-box}
+body{margin:0;background:var(--canvas);color:var(--ink);font:15px/1.5 Segoe UI,Arial,sans-serif}
+header{background:#14213d;color:#fff;padding:26px max(24px,calc((100vw - 1000px)/2))}
+h1{margin:0;font-size:25px}
+main{max-width:1000px;margin:22px auto;padding:0 18px 42px}
+.toolbar{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+input{flex:1;min-width:220px;padding:10px 12px;border:1px solid #cbd5e1;border-radius:8px;font:inherit;background:#fff}
+button{font:inherit;cursor:pointer;padding:8px 12px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:var(--ink)}
+button:hover{background:#edf2fb}
+.tree{display:grid;gap:12px}
+details{background:var(--surface);border:1px solid var(--line);border-radius:9px}
+summary{cursor:pointer;font-weight:650;padding:12px 15px}
+.group{border-left:5px solid var(--accent)}
+.group>summary{font-size:18px}
+.categories{display:grid;gap:8px;padding:0 12px 12px}
+.category{border-radius:7px;background:#fafbfc}
+.category>summary{font-size:15px}
+.subcategories{margin:0;padding:0 16px 12px 38px;color:#344054}
+.subcategories li{padding:3px 0}
 [hidden]{display:none!important}
-@media(max-width:600px){header{padding:22px 18px}h1{font-size:22px}main{margin:16px auto;padding:0 12px 32px}.children{padding-left:26px}.group{margin-left:0}.count{font-size:11px}.summary{width:100%;margin-left:0}}
+@media(max-width:600px){header{padding:21px 16px}h1{font-size:21px}main{margin:14px auto;padding:0 11px 28px}}
 </style>
 </head>
 <body>
-<header>
-<h1>Expenditure Categories</h1>
-<p>Explore the app's categorization tree. Expand a category, then a subcategory to see its matching keywords, patterns, and how often it occurs in the saved transaction data. Matching rules are examples used by the app; a transaction may also match a known merchant or a special rule.</p>
-</header>
+<header><h1>Generic Category Tree</h1></header>
 <main>
 <div class="toolbar">
-<input id="search" type="search" placeholder="Search categories, subcategories, or rules..." aria-label="Search the category tree">
-<button class="tool" id="expand-all" type="button">Expand all</button>
-<button class="tool" id="collapse-all" type="button">Collapse all</button>
-<span class="summary" id="summary"></span>
+<input id="search" type="search" placeholder="Search categories and subcategories" aria-label="Search category names">
+<button id="expand-all" type="button">Expand all</button>
+<button id="collapse-all" type="button">Collapse all</button>
 </div>
-<p class="note">Saved-data totals use the absolute transaction amount, so income and expense values are both shown as positive totals. Rules and transaction totals are a snapshot from this file's current data.</p>
-<div class="tree" id="tree"></div>
-<div class="no-results" id="no-results">No matching categories or rules.</div>
+<div class="tree" id="tree">
+<details class="group" open>
+<summary>Income</summary>
+<div class="categories">
+<details class="category">
+<summary>Income</summary>
+<ul class="subcategories">
+<li>Salary</li><li>Interest</li><li>Dividends</li><li>Refunds</li><li>Investment Returns</li><li>Other Income</li>
+</ul>
+</details>
+</div>
+</details>
+<details class="group" open>
+<summary>Investment</summary>
+<div class="categories">
+<details class="category">
+<summary>Investments</summary>
+<ul class="subcategories">
+<li>Stocks &amp; Trading</li><li>Mutual Funds &amp; SIP</li><li>Gold &amp; Jewelry</li><li>Fixed Deposits</li><li>Recurring Deposits</li><li>PPF &amp; NPS</li><li>Other Investments</li>
+</ul>
+</details>
+<details class="category">
+<summary>Education</summary>
+<ul class="subcategories">
+<li>Entrance Exams &amp; Applications</li><li>College &amp; University</li><li>School Fees</li><li>Coaching &amp; Tuition</li><li>Training &amp; Courses</li><li>Books &amp; Materials</li>
+</ul>
+</details>
+</div>
+</details>
+<details class="group" open>
+<summary>Planned</summary>
+<div class="categories">
+<details class="category">
+<summary>Insurance</summary>
+<ul class="subcategories">
+<li>Life Insurance</li><li>Health Insurance</li><li>Vehicle Insurance</li><li>Term Insurance</li><li>General Insurance</li>
+</ul>
+</details>
+<details class="category">
+<summary>Recurring Commitments</summary>
+<ul class="subcategories"><li>Standing Instruction (EMI/SIP)</li></ul>
+</details>
+<details class="category">
+<summary>Loans &amp; EMI</summary>
+<ul class="subcategories">
+<li>Home Loan EMI</li><li>Vehicle Loan EMI</li><li>Personal &amp; Consumer Loan</li><li>Credit Card Payment</li>
+</ul>
+</details>
+<details class="category">
+<summary>Taxes &amp; Government</summary>
+<ul class="subcategories">
+<li>Income Tax</li><li>GST &amp; Other Taxes</li><li>Property &amp; Municipal Tax</li><li>Government Services</li>
+</ul>
+</details>
+</div>
+</details>
+<details class="group" open>
+<summary>Expense</summary>
+<div class="categories">
+<details class="category">
+<summary>Healthcare</summary>
+<ul class="subcategories">
+<li>Hospital</li><li>Clinic &amp; Doctor</li><li>Pharmacy</li><li>Diagnostic &amp; Labs</li><li>Dental</li><li>Wellness &amp; Fitness</li>
+</ul>
+</details>
+<details class="category">
+<summary>Food &amp; Dining</summary>
+<ul class="subcategories"><li>Groceries</li><li>Food Delivery</li><li>Restaurants</li><li>Cafe &amp; Coffee</li></ul>
+</details>
+<details class="category">
+<summary>Shopping</summary>
+<ul class="subcategories">
+<li>Online Shopping</li><li>Electronics</li><li>Clothing &amp; Fashion</li><li>Home &amp; Furniture</li><li>Local Shops &amp; Vendors</li>
+</ul>
+</details>
+<details class="category">
+<summary>Travel</summary>
+<ul class="subcategories">
+<li>Rail &amp; Train</li><li>Flights</li><li>Hotels &amp; Accommodation</li><li>Intercity Bus</li><li>Travel Booking</li><li>Tours &amp; Activities</li>
+</ul>
+</details>
+<details class="category">
+<summary>Transportation</summary>
+<ul class="subcategories">
+<li>Fuel</li><li>Taxi &amp; Rideshare</li><li>Public Transport</li><li>Parking &amp; Toll</li><li>Vehicle Service &amp; Repair</li>
+</ul>
+</details>
+<details class="category">
+<summary>Telecom</summary>
+<ul class="subcategories"><li>Mobile &amp; Phone</li><li>Internet &amp; Broadband</li><li>DTH &amp; Cable</li></ul>
+</details>
+<details class="category">
+<summary>Utilities</summary>
+<ul class="subcategories"><li>Electricity</li><li>Water</li><li>Gas &amp; LPG</li></ul>
+</details>
+<details class="category">
+<summary>Entertainment</summary>
+<ul class="subcategories"><li>Streaming Services</li><li>Movies &amp; Theatre</li><li>Gaming</li><li>Events &amp; Activities</li></ul>
+</details>
+<details class="category">
+<summary>Subscriptions</summary>
+<ul class="subcategories"><li>App Subscriptions</li><li>Cloud &amp; Storage</li><li>Membership</li></ul>
+</details>
+<details class="category">
+<summary>Housing</summary>
+<ul class="subcategories"><li>Rent</li><li>Maintenance</li><li>Home Services</li></ul>
+</details>
+<details class="category">
+<summary>Other</summary>
+<ul class="subcategories"><li>Bank Charges</li><li>Uncategorized</li></ul>
+</details>
+<details class="category">
+<summary>Donations &amp; Charity</summary>
+<ul class="subcategories"><li>Temple &amp; Religious</li><li>Trust &amp; NGO</li></ul>
+</details>
+<details class="category">
+<summary>Personal Care</summary>
+<ul class="subcategories"><li>Salon &amp; Grooming</li><li>Cosmetics</li></ul>
+</details>
+</div>
+</details>
+<details class="group" open>
+<summary>Transfer</summary>
+<div class="categories">
+<details class="category">
+<summary>Individual Transfers</summary>
+<ul class="subcategories">
+<li>Domestic Help</li><li>Personal Payment</li><li>Family &amp; Friends</li><li>NEFT Transfer</li><li>IMPS Transfer</li><li>RTGS Transfer</li><li>Bank Transfer</li>
+</ul>
+</details>
+<details class="category">
+<summary>Cash &amp; ATM</summary>
+<ul class="subcategories"><li>ATM Withdrawal</li></ul>
+</details>
+</div>
+</details>
+</div>
 </main>
-<script type="application/json" id="taxonomy-data">{"categories": [{"name": "Income", "group": "Income", "description": "Salary, interest, dividends, refunds", "priority": 1, "icon": "💰", "color": "#4CAF50", "subcategories": [{"name": "Salary", "keywords": ["salary", "payroll", "wages", "monthly pay", "neft cr"], "patterns": [".*salary.*", ".*payroll.*"], "count": 37, "amount": 5301046.26}, {"name": "Interest", "keywords": ["interest", "int.pd", "int pd", "interest credit"], "patterns": [".*interest.*cr.*", ".*int\\.?pd.*"], "count": 13, "amount": 136698.0}, {"name": "Dividends", "keywords": ["dividend", "div", "payout"], "patterns": [".*dividend.*"], "count": 13, "amount": 13579.0}, {"name": "Refunds", "keywords": ["refund", "cashback", "reversal", "credit back", "returned"], "patterns": [".*refund.*", ".*reversal.*"], "count": 18, "amount": 10993.53}, {"name": "Other Income", "keywords": [], "patterns": [], "count": 38, "amount": 827248.43}], "count": 119, "amount": 6289565.22}, {"name": "Investments", "group": "Investment", "description": "Stocks, Mutual Funds, SIP, Gold, Jewelry, FD, RD", "priority": 2, "icon": "💎", "color": "#2196F3", "subcategories": [{"name": "Stocks \u0026 Trading", "keywords": ["zerodha", "upstox", "groww", "angel broking", "angel one", "sharekhan", "iifl", "kotak securities", "hdfc securities", "icici direct", "axis direct", "motilal", "sharekhan", "5paisa", "alice blue", "fyers", "trading", "demat", "brokerage", "nse", "bse", "sensex", "nifty", "stocks", "razorpay", "razpbse", "clearing corp"], "patterns": [".*zerodha.*", ".*groww.*", ".*upstox.*", ".*trading.*", ".*demat.*", ".*brokerage.*", ".*razorpay.*securities.*"], "count": 44, "amount": 1708798.04}, {"name": "Mutual Funds \u0026 SIP", "keywords": ["mutual fund", "sip", "systematic investment", "amc", "hdfc amc", "icici pru", "sbi mf", "axis mf", "kotak mf", "nippon", "franklin", "mirae", "parag parikh", "ppfas", "dsp", "tata mf", "uti mf", "aditya birla", "elss", "equity fund", "debt fund", "liquid fund", "balanced fund", "fund house", "nav", "hybrid fund"], "patterns": [".*mutual.*fund.*", ".*\\bsip\\b.*", ".*amc.*", ".*systematic.*invest.*"], "count": 0, "amount": 0.0}, {"name": "Gold \u0026 Jewelry", "keywords": ["mmtc gold", "digital gold", "gold etf", "sovereign gold", "gold bonds", "sgb", "bullion", "precious metal", "jewellers", "jewellery", "jewelry shop", "gold shop"], "patterns": [".*jewellers.*", ".*jewellery.*", ".*gold\\s*(shop|store|house|palace).*", ".*\\bgold\\b.*\\b(etf|bond|sgb|mmtc|sovereign)\\b.*"], "count": 6, "amount": 284015.0}, {"name": "Fixed Deposits", "keywords": ["fixed deposit", "fd", "term deposit", "fd booking", "fd renewal", "fd placement"], "patterns": [".*fixed.*deposit.*", ".*\\bfd\\b.*booking.*"], "count": 11, "amount": 3300000.0}, {"name": "Recurring Deposits", "keywords": ["recurring deposit", "rd", "rd installment"], "patterns": [".*recurring.*deposit.*", ".*\\brd\\b.*install.*"], "count": 0, "amount": 0.0}, {"name": "PPF \u0026 NPS", "keywords": ["ppf", "public provident", "nps", "national pension", "epf", "pf contribution", "provident fund"], "patterns": [".*\\bppf\\b.*", ".*\\bnps\\b.*", ".*provident.*fund.*"], "count": 0, "amount": 0.0}, {"name": "Other Investments", "keywords": ["investment", "investme", "nsc", "kisan vikas", "bonds", "ncd", "reit"], "patterns": [], "count": 1, "amount": 300000.0}], "count": 62, "amount": 5592813.04}, {"name": "Insurance", "group": "Planned", "description": "Life, Health, Vehicle, Term Insurance", "priority": 3, "icon": "🛡️", "color": "#00BCD4", "subcategories": [{"name": "Life Insurance", "keywords": ["lic", "life insurance", "lic of india", "lic premium", "max life", "hdfc life", "icici pru life", "sbi life", "bajaj allianz life", "tata aia", "kotak life", "endowment", "money back", "whole life", "ulip"], "patterns": [".*\\blic\\b.*", ".*life.*insurance.*", ".*lic.*premium.*"], "count": 4, "amount": 310167.0}, {"name": "Health Insurance", "keywords": ["health insurance", "mediclaim", "medical insurance", "star health", "max bupa", "care health", "niva bupa", "aditya birla health", "hdfc ergo health", "icici lombard health", "family floater", "health policy"], "patterns": [".*health.*insurance.*", ".*mediclaim.*"], "count": 0, "amount": 0.0}, {"name": "Vehicle Insurance", "keywords": ["car insurance", "motor insurance", "vehicle insurance", "bike insurance", "two wheeler insurance", "four wheeler", "comprehensive insurance", "third party", "own damage", "acko", "digit insurance", "hdfc ergo motor", "icici lombard motor"], "patterns": [".*car.*insurance.*", ".*motor.*insurance.*", ".*vehicle.*insurance.*"], "count": 2, "amount": 5827.0}, {"name": "Term Insurance", "keywords": ["term insurance", "term plan", "term life", "pure term", "aegon", "term cover"], "patterns": [".*term.*insurance.*", ".*term.*plan.*"], "count": 0, "amount": 0.0}, {"name": "General Insurance", "keywords": ["insurance premium", "policy premium", "renewal premium", "home insurance", "travel insurance", "accident insurance"], "patterns": [".*insurance.*premium.*", ".*policy.*premium.*"], "count": 1, "amount": 5245.0}], "count": 7, "amount": 321239.0}, {"name": "Education", "group": "Planned", "description": "School, College, Training, Courses, Books", "priority": 4, "icon": "📚", "color": "#9C27B0", "subcategories": [{"name": "School Fees", "keywords": ["school", "school fee", "school fees", "tuition", "vidyalaya", "academy", "cbse", "icse", "state board", "primary school", "high school", "pre-school", "nursery", "kindergarten", "play school"], "patterns": [".*school.*fee.*", ".*school.*", ".*tuition.*"], "count": 8, "amount": 351510.4}, {"name": "College \u0026 University", "keywords": ["college", "university", "semester fee", "admission fee", "examination fee", "convocation", "degree", "graduation", "post graduation", "mba", "engineering", "medical college", "institute", "iit", "iim", "nit", "bits"], "patterns": [".*college.*fee.*", ".*university.*", ".*semester.*"], "count": 5, "amount": 11383.04}, {"name": "Training \u0026 Courses", "keywords": ["training", "course", "workshop", "seminar", "certification", "udemy", "coursera", "linkedin learning", "skillshare", "upgrad", "simplilearn", "great learning", "coding", "bootcamp", "coaching", "classes", "tutorial", "lesson"], "patterns": [".*training.*", ".*course.*fee.*", ".*workshop.*"], "count": 0, "amount": 0.0}, {"name": "Coaching \u0026 Tuition", "keywords": ["coaching", "tuition", "byjus", "byju", "unacademy", "vedantu", "aakash", "allen", "fiitjee", "resonance", "physics wallah", "whitehat", "toppr", "extra class"], "patterns": [".*coaching.*", ".*byjus.*", ".*unacademy.*"], "count": 4, "amount": 275200.0}, {"name": "Books \u0026 Materials", "keywords": ["book", "books", "textbook", "stationery", "notebook", "study material", "kindle", "amazon kindle", "audible"], "patterns": [".*\\bbooks?\\b.*", ".*\\btextbook.*", ".*stationery.*"], "count": 0, "amount": 0.0}], "count": 17, "amount": 638093.44}, {"name": "Healthcare", "group": "Expense", "description": "Hospital, Clinic, Pharmacy, Medical Tests", "priority": 5, "icon": "🏥", "color": "#9966FF", "subcategories": [{"name": "Hospital", "keywords": ["hospital", "apollo", "fortis", "max hospital", "manipal", "narayana", "columbia asia", "medanta", "aiims", "medical center", "healthcare", "nursing home", "icu", "surgery", "operation", "treatment", "admission"], "patterns": [".*hospital.*", ".*apollo.*", ".*fortis.*"], "count": 4, "amount": 26087.0}, {"name": "Clinic \u0026 Doctor", "keywords": ["clinic", "doctor", "physician", "consultation", "dr.", "specialist", "opd", "checkup", "check-up", "diagnosis", "practo", "docsapp", "lybrate", "portea"], "patterns": [".*clinic.*", ".*doctor.*", ".*\\bdr\\..*"], "count": 5, "amount": 10530.0}, {"name": "Pharmacy", "keywords": ["pharmacy", "medical", "medicine", "medplus", "apollo pharmacy", "netmeds", "1mg", "pharmeasy", "medlife", "chemist", "drug store", "prescription", "tablet", "capsule"], "patterns": [".*pharmacy.*", ".*medplus.*", ".*netmeds.*", ".*1mg.*"], "count": 64, "amount": 45898.74}, {"name": "Diagnostic \u0026 Labs", "keywords": ["lab", "laboratory", "diagnostic", "test", "pathology", "thyrocare", "lal path", "srl", "metropolis", "blood test", "x-ray", "scan", "mri", "ct scan", "ultrasound", "ecg", "health checkup", "full body", "preventive"], "patterns": [".*\\blabs?\\b.*", ".*\\blaboratory\\b.*", ".*diagnostic.*", ".*thyrocare.*", ".*pathology.*"], "count": 1, "amount": 2350.0}, {"name": "Dental", "keywords": ["dental", "dentist", "tooth", "teeth", "orthodontist", "dental clinic", "clove dental", "mydentist", "sabka dentist"], "patterns": [".*dental.*", ".*dentist.*"], "count": 0, "amount": 0.0}, {"name": "Wellness \u0026 Fitness", "keywords": ["gym", "fitness", "yoga", "cult", "cult fit", "gold gym", "anytime fitness", "spa", "massage", "physiotherapy", "ayurveda", "wellness"], "patterns": [".*gym.*", ".*fitness.*", ".*cult.*fit.*"], "count": 1, "amount": 500.0}], "count": 75, "amount": 85365.74}, {"name": "Food \u0026 Dining", "group": "Expense", "description": "Groceries, Restaurants, Food Delivery", "priority": 7, "icon": "🍔", "color": "#FF6384", "subcategories": [{"name": "Groceries", "keywords": ["grocery", "supermarket", "dmart", "big basket", "bigbasket", "blinkit", "grofers", "jiomart", "amazon fresh", "nature basket", "more supermarket", "reliance fresh", "spencer", "star bazaar", "vegetables", "fruits", "provisions", "kirana", "general store", "departmental", "hypermarket", "spar"], "patterns": [".*grocery.*", ".*supermarket.*", ".*dmart.*", ".*bigbasket.*"], "count": 246, "amount": 248389.23}, {"name": "Food Delivery", "keywords": ["swiggy", "zomato", "uber eats", "food panda", "dunzo", "faasos", "box8", "behrouz", "eatfit", "freshmenu"], "patterns": [".*swiggy.*", ".*zomato.*"], "count": 245, "amount": 197309.55}, {"name": "Restaurants", "keywords": ["restaurant", "cafe", "dhaba", "food court", "biryani", "chinese", "pizza", "burger", "dominos", "pizza hut", "mcdonalds", "kfc", "subway", "taco bell", "barbeque nation", "mainland china", "paradise", "dining"], "patterns": [".*restaurant.*", ".*dominos.*", ".*pizza.*hut.*"], "count": 125, "amount": 63725.25}, {"name": "Cafe \u0026 Coffee", "keywords": ["starbucks", "ccd", "cafe coffee day", "barista", "costa", "third wave", "blue tokai", "coffee", "tea", "chai"], "patterns": [".*starbucks.*", ".*cafe.*coffee.*day.*", ".*coffee.*"], "count": 23, "amount": 4118.0}], "count": 639, "amount": 513542.03}, {"name": "Shopping", "group": "Expense", "description": "Online \u0026 Offline Shopping", "priority": 8, "icon": "🛒", "color": "#36A2EB", "subcategories": [{"name": "Online Shopping", "keywords": ["amazon", "flipkart", "myntra", "ajio", "meesho", "snapdeal", "tatacliq", "nykaa", "purplle", "mamaearth", "wow", "firstcry", "shopclues", "paytm mall", "pepperfry", "urban ladder"], "patterns": [".*amazon(?!.*prime).*", ".*flipkart.*", ".*myntra.*"], "count": 137, "amount": 132604.77}, {"name": "Electronics", "keywords": ["croma", "reliance digital", "vijay sales", "mobile", "laptop", "computer", "electronic", "gadget", "samsung", "apple store", "mi store", "oneplus", "headphone", "earphone", "camera"], "patterns": [".*croma.*", ".*reliance.*digital.*", ".*electronic.*"], "count": 5, "amount": 20551.46}, {"name": "Clothing \u0026 Fashion", "keywords": ["max", "lifestyle", "pantaloons", "westside", "shoppers stop", "zara", "h\u0026m", "levis", "wrangler", "peter england", "van heusen", "allen solly", "clothing", "garment", "apparel"], "patterns": [".*lifestyle.*", ".*pantaloons.*", ".*shoppers.*stop.*"], "count": 14, "amount": 74824.0}, {"name": "Home \u0026 Furniture", "keywords": ["ikea", "home centre", "hometown", "pepperfry", "urban ladder", "godrej interio", "nilkamal", "furniture", "home decor", "mattress", "bedsheet", "curtain"], "patterns": [".*ikea.*", ".*pepperfry.*", ".*urban.*ladder.*"], "count": 0, "amount": 0.0}, {"name": "Local Shops \u0026 Vendors", "keywords": [], "patterns": [], "count": 43, "amount": 42995.14}], "count": 199, "amount": 270975.37}, {"name": "Travel", "group": "Expense", "description": "Rail, flights, accommodation, and travel bookings", "priority": 8.5, "icon": "🧳", "color": "#5C6BC0", "subcategories": [{"name": "Rail \u0026 Train", "keywords": ["irctc", "railway", "train ticket", "train booking", "rail ticket"], "patterns": [".*\\birctc\\b.*", ".*\\btrain\\s+(ticket|booking)\\b.*", ".*\\brailway\\b.*"], "count": 7, "amount": 5328.0}, {"name": "Flights", "keywords": ["flight", "airfare", "air india", "indigo", "spicejet", "vistara", "akasa air", "air asia"], "patterns": [".*\\bflight\\b.*", ".*\\bairfare\\b.*"], "count": 0, "amount": 0.0}, {"name": "Hotels \u0026 Accommodation", "keywords": ["hotel booking", "hotel reservation", "hotel stay", "room booking", "accommodation", "lodging", "homestay", "resort", "oyo", "treebo", "fabhotels", "airbnb"], "patterns": [".*\\bhotel\\s+(booking|reservation|stay)\\b.*", ".*\\b(room|accommodation)\\s+booking\\b.*", ".*\\b(lodging|homestay|resort)\\b.*"], "count": 3, "amount": 11737.0}, {"name": "Intercity Bus", "keywords": ["redbus", "abhibus", "bus booking", "coach booking"], "patterns": [".*\\b(bus|coach)\\s+booking\\b.*"], "count": 1, "amount": 1984.5}, {"name": "Travel Booking", "keywords": ["makemytrip", "goibibo", "cleartrip", "yatra", "ixigo", "easemytrip"], "patterns": [".*\\b(travel|tour)\\s+(booking|agency)\\b.*"], "count": 10, "amount": 147551.0}, {"name": "Tours \u0026 Activities", "keywords": ["tour package", "sightseeing", "travel agency", "guided tour"], "patterns": [".*\\b(tour|travel)\\s+(package|agency)\\b.*"], "count": 4, "amount": 57400.0}], "count": 25, "amount": 224000.5}, {"name": "Transportation", "group": "Expense", "description": "Local transport, fuel, and vehicle expenses", "priority": 9, "icon": "🚗", "color": "#FFCE56", "subcategories": [{"name": "Fuel", "keywords": ["petrol", "diesel", "fuel", "hp", "bharat petroleum", "bpcl", "indian oil", "iocl", "shell", "reliance petrol", "petrol pump", "gas station", "filling station", "cng"], "patterns": [".*petrol.*", ".*diesel.*", ".*fuel.*", ".*\\bhp\\b.*petrol.*"], "count": 1, "amount": 1000.0}, {"name": "Taxi \u0026 Rideshare", "keywords": ["uber", "ola", "rapido", "taxi", "cab", "auto", "rickshaw", "meru", "fasttrack", "airport taxi"], "patterns": [".*uber.*", ".*\\bola\\b.*", ".*rapido.*", ".*taxi.*"], "count": 5, "amount": 7328.25}, {"name": "Public Transport", "keywords": ["metro", "bmtc", "best", "dtc", "travel card"], "patterns": [".*\\bmetro\\b.*", ".*\\b(bmtc|best|dtc)\\b.*"], "count": 0, "amount": 0.0}, {"name": "Parking \u0026 Toll", "keywords": ["parking", "toll", "fastag", "nhai", "expressway", "highway"], "patterns": [".*parking.*", ".*toll.*", ".*fastag.*"], "count": 3, "amount": 1500.0}, {"name": "Vehicle Service \u0026 Repair", "keywords": ["garage", "service centre", "service center", "car wash", "tyre", "tire", "puncture", "battery", "spare parts", "automobile"], "patterns": [], "count": 5, "amount": 68667.0}], "count": 14, "amount": 78495.25}, {"name": "Telecom", "group": "Expense", "description": "Mobile, internet, and television services", "priority": 9.5, "icon": "📱", "color": "#26A69A", "subcategories": [{"name": "Mobile \u0026 Phone", "keywords": ["airtel", "jio", "vodafone", "vi", "bsnl", "mtnl", "mobile bill", "phone bill", "recharge", "prepaid", "postpaid"], "patterns": [".*\\b(mobile|phone)\\s+bill\\b.*", ".*\\b(recharge|prepaid|postpaid)\\b.*"], "count": 123, "amount": 94682.0}, {"name": "Internet \u0026 Broadband", "keywords": ["internet", "broadband", "wifi", "act fibernet", "jio fiber", "airtel xstream", "hathway", "tikona", "you broadband", "excitel", "spectra", "alliance broadband", "asianet"], "patterns": [".*\\binternet\\b.*", ".*\\bbroadband\\b.*", ".*\\bwifi\\b.*"], "count": 19, "amount": 38333.3}, {"name": "DTH \u0026 Cable", "keywords": ["dth", "tata sky", "dish tv", "airtel dth", "videocon d2h", "sun direct", "cable tv", "tv recharge"], "patterns": [".*\\bdth\\b.*", ".*\\bcable\\s+tv\\b.*"], "count": 0, "amount": 0.0}], "count": 142, "amount": 133015.3}, {"name": "Utilities", "group": "Expense", "description": "Electricity, water, and gas", "priority": 10, "icon": "💡", "color": "#4BC0C0", "subcategories": [{"name": "Electricity", "keywords": ["electricity", "electric", "bescom", "bses", "tata power", "adani electricity", "reliance energy", "power bill", "eb bill", "mseb", "tneb", "wbsedcl"], "patterns": [".*electricity.*", ".*bescom.*", ".*power.*bill.*"], "count": 33, "amount": 62719.0}, {"name": "Water", "keywords": ["water", "bwssb", "water bill", "water supply", "municipal water"], "patterns": [".*water.*bill.*", ".*bwssb.*"], "count": 0, "amount": 0.0}, {"name": "Gas \u0026 LPG", "keywords": ["gas", "lpg", "indane", "bharat gas", "hp gas", "piped gas", "png", "igl", "mahanagar gas", "cooking gas", "cylinder"], "patterns": [".*\\blpg\\b.*", ".*\\b(gas\\s*(cylinder|booking|agency|connection))\\b.*", ".*indane.*", ".*piped.*gas.*"], "count": 0, "amount": 0.0}], "count": 33, "amount": 62719.0}, {"name": "Entertainment", "group": "Expense", "description": "Streaming, Movies, Games, Events", "priority": 11, "icon": "🎬", "color": "#FF9F40", "subcategories": [{"name": "Streaming Services", "keywords": ["netflix", "amazon prime", "hotstar", "disney", "sony liv", "zee5", "voot", "jio cinema", "mubi", "apple tv", "youtube premium", "spotify", "gaana", "wynk", "amazon music", "apple music"], "patterns": [".*netflix.*", ".*hotstar.*", ".*prime.*video.*", ".*spotify.*"], "count": 34, "amount": 16966.0}, {"name": "Movies \u0026 Theatre", "keywords": ["pvr", "inox", "cinepolis", "carnival", "bookmyshow", "paytm movies", "movie", "cinema", "multiplex", "theatre", "film"], "patterns": [".*pvr.*", ".*inox.*", ".*bookmyshow.*", ".*movie.*"], "count": 13, "amount": 7394.86}, {"name": "Gaming", "keywords": ["playstation", "xbox", "steam", "epic games", "game", "gaming", "pubg", "valorant", "google play games"], "patterns": [".*playstation.*", ".*xbox.*", ".*steam.*"], "count": 0, "amount": 0.0}, {"name": "Events \u0026 Activities", "keywords": ["event", "concert", "show", "exhibition", "museum", "amusement park", "theme park", "wonderla", "imagica"], "patterns": [".*concert.*", ".*event.*ticket.*"], "count": 2, "amount": 1180.0}], "count": 49, "amount": 25540.86}, {"name": "Subscriptions", "group": "Expense", "description": "Apple, Google, recurring digital service subscriptions", "priority": 12, "icon": "🔄", "color": "#AB47BC", "subcategories": [{"name": "App Subscriptions", "keywords": ["apple services", "apple.com", "apple icloud", "google storage", "google one", "google cloud", "microsoft 365", "office 365", "adobe", "creative cloud", "canva", "notion", "evernote", "dropbox", "icloud", "telegram premium"], "patterns": [".*apple.*services.*", ".*google.*cloud.*", ".*microsoft.*365.*"], "count": 91, "amount": 76319.0}, {"name": "Cloud \u0026 Storage", "keywords": ["aws", "azure", "google cloud platform", "cloud storage", "hosting", "domain", "godaddy", "namecheap"], "patterns": [".*cloud.*storage.*", ".*hosting.*"], "count": 2, "amount": 21.42}, {"name": "Membership", "keywords": ["membership", "subscription", "annual plan", "monthly plan", "premium plan", "pro plan"], "patterns": [".*membership.*", ".*subscription.*"], "count": 0, "amount": 0.0}], "count": 93, "amount": 76340.42}, {"name": "Housing", "group": "Expense", "description": "Rent, Maintenance, Society Fees", "priority": 13, "icon": "🏠", "color": "#8BC34A", "subcategories": [{"name": "Rent", "keywords": ["rent", "house rent", "flat rent", "room rent", "pg rent", "rental", "monthly rent", "landlord"], "patterns": [".*rent.*", ".*landlord.*"], "count": 0, "amount": 0.0}, {"name": "Maintenance", "keywords": ["maintenance", "society", "apartment", "flat maintenance", "building maintenance", "society fee", "maintenance charge"], "patterns": [".*maintenance.*", ".*society.*fee.*"], "count": 0, "amount": 0.0}, {"name": "Home Services", "keywords": ["urban company", "urbanclap", "housejoy", "plumber", "electrician", "carpenter", "pest control", "cleaning", "deep cleaning", "ac service", "appliance repair"], "patterns": [".*urban.*company.*", ".*home.*service.*"], "count": 1, "amount": 3665.0}], "count": 1, "amount": 3665.0}, {"name": "Individual Transfers", "group": "Transfer", "description": "UPI payments to individuals (domestic help, personal payments)", "priority": 14, "icon": "👤", "color": "#78909C", "subcategories": [{"name": "Domestic Help", "keywords": [], "patterns": [], "count": 0, "amount": 0.0}, {"name": "Personal Payment", "keywords": [], "patterns": [], "count": 439, "amount": 1314445.67}, {"name": "Family \u0026 Friends", "keywords": [], "patterns": [], "count": 0, "amount": 0.0}, {"name": "NEFT Transfer", "keywords": [], "patterns": [], "count": 47, "amount": 2702500.0}, {"name": "IMPS Transfer", "keywords": [], "patterns": [], "count": 52, "amount": 3133401.0}, {"name": "RTGS Transfer", "keywords": [], "patterns": [], "count": 1, "amount": 200000.0}, {"name": "Bank Transfer", "keywords": [], "patterns": [], "count": 1, "amount": 1000.0}], "count": 540, "amount": 7351346.67}, {"name": "Other", "group": "Expense", "description": "Uncategorized transactions", "priority": 99, "icon": "📦", "color": "#795548", "subcategories": [{"name": "Bank Charges", "keywords": ["bank charge", "service charge", "annual fee", "sms charge"], "patterns": [".*bank.*charge.*", ".*service.*charge.*"], "count": 0, "amount": 0.0}, {"name": "Uncategorized", "keywords": [], "patterns": [], "count": 0, "amount": 0.0}], "count": 0, "amount": 0.0}, {"name": "Recurring Commitments", "group": "Planned", "description": "Standing instructions and recurring financial commitments", "priority": 3.5, "icon": "📅", "color": "#5D4037", "subcategories": [{"name": "Standing Instruction (EMI/SIP)", "keywords": [], "patterns": [], "count": 24, "amount": 48794.0}], "count": 24, "amount": 48794.0}, {"name": "Loans \u0026 EMI", "group": "Planned", "description": "Home/car/personal loan EMIs, credit card bill payments", "priority": 3, "icon": "🏦", "color": "#5D4037", "subcategories": [{"name": "Home Loan EMI", "keywords": ["home loan", "housing loan", "lic housing", "hdfc ltd", "pnb housing", "bajaj housing", "can fin homes"], "patterns": [], "count": 0, "amount": 0.0}, {"name": "Vehicle Loan EMI", "keywords": ["car loan", "auto loan", "vehicle loan", "two wheeler loan", "bike loan", "tvs credit", "mahindra finance", "hero fincorp"], "patterns": [], "count": 0, "amount": 0.0}, {"name": "Personal \u0026 Consumer Loan", "keywords": ["personal loan", "bajaj finance", "bajaj finserv", "loan repay", "loan emi", "moneyview", "kreditbee", "navi loan", "fullerton", "muthoot finance", "manappuram", "cred club"], "patterns": [".*\\bemi\\b.*", ".*\\bnach\\b.*loan.*"], "count": 0, "amount": 0.0}, {"name": "Credit Card Payment", "keywords": ["credit card", "cc payment", "cardpayment", "billdesk cc", "cred.club", "cred club", "creditcard"], "patterns": [".*\\bcc\\s*bill.*"], "count": 2, "amount": 600000.0}], "count": 2, "amount": 600000.0}, {"name": "Taxes \u0026 Government", "group": "Planned", "description": "Income tax, GST, property tax, challans, government fees", "priority": 4.5, "icon": "🏛️", "color": "#455A64", "subcategories": [{"name": "Income Tax", "keywords": ["cbdt", "income tax", "incometax", "advance tax", "tds payment"], "patterns": [], "count": 2, "amount": 185520.0}, {"name": "GST \u0026 Other Taxes", "keywords": ["gst payment", "gstn", "professional tax", "pt payment"], "patterns": [], "count": 0, "amount": 0.0}, {"name": "Property \u0026 Municipal Tax", "keywords": ["property tax", "bbmp", "municipal", "corporation tax", "panchayat", "water tax", "bda", "khata"], "patterns": [], "count": 0, "amount": 0.0}, {"name": "Government Services", "keywords": ["hsrp", "passport", "rto", "parivahan", "challan", "e-challan", "traffic police", "stamp duty", "registration fee", "sub registrar", "aadhaar", "digilocker", "echallan"], "patterns": [], "count": 1, "amount": 999.0}], "count": 3, "amount": 186519.0}, {"name": "Donations \u0026 Charity", "group": "Expense", "description": "Temples, trusts, ashrams, NGOs, religious and charitable giving", "priority": 5.5, "icon": "🙏", "color": "#FF7043", "subcategories": [{"name": "Temple \u0026 Religious", "keywords": ["temple", "mandir", "devasthanam", "ashram", "ashramam", "mutt", "math ", "gurudwara", "church", "mosque", "dargah", "tirumala", "tirupati", "ttd ", "iskcon", "anugraha", "sabha", "seva"], "patterns": [], "count": 9, "amount": 70000.0}, {"name": "Trust \u0026 NGO", "keywords": [" trust", "foundation", "charitable", "charity", "ngo", "relief fund", "pm cares", "cmrf", "donation", "ketto", "giveindia", "goonj"], "patterns": [".*\\btrust\\b.*"], "count": 0, "amount": 0.0}], "count": 9, "amount": 70000.0}, {"name": "Personal Care", "group": "Expense", "description": "Salon, beauty, grooming, cosmetics", "priority": 11.5, "icon": "💇", "color": "#EC407A", "subcategories": [{"name": "Salon \u0026 Grooming", "keywords": ["salon", "parlour", "parlor", "barber", "haircut", "beauty", "unisex", "looks salon", "naturals", "lakme", "jawed habib", "green trends"], "patterns": [], "count": 5, "amount": 920.0}, {"name": "Cosmetics", "keywords": ["nykaa", "sugar cosmetics", "mamaearth", "purplle", "cosmetic", "body shop"], "patterns": [], "count": 0, "amount": 0.0}], "count": 5, "amount": 920.0}, {"name": "Cash \u0026 ATM", "group": "Transfer", "description": "ATM and branch cash withdrawals", "priority": 13.5, "icon": "🏧", "color": "#90A4AE", "subcategories": [{"name": "ATM Withdrawal", "keywords": ["atm-cash", "atm cash", "cash withdrawal", "atw-", "nwd-", "cash wdl"], "patterns": [".*\\batm\\b.*"], "count": 18, "amount": 138000.0}], "count": 18, "amount": 138000.0}], "transactionCount": 2076}</script>
 <script>
-const data = JSON.parse(document.getElementById('taxonomy-data').textContent);
-const tree = document.getElementById('tree');
-const formatAmount = n => new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:0}).format(n);
-const make = (tag, cls, text) => { const el=document.createElement(tag); if(cls) el.className=cls; if(text!==undefined) el.textContent=text; return el; };
-function button(label, cls, expanded, title){const b=make('button',cls);b.type='button';b.setAttribute('aria-expanded',String(expanded));b.setAttribute('aria-label',label);if(title)b.title=title;return b;}
-function toggleButton(label, cls, child, onOpen){const b=button(label,cls,false);const arrow=make('span','chevron','>');arrow.setAttribute('aria-hidden','true');b.append(arrow);b.addEventListener('click',()=>{const open=b.getAttribute('aria-expanded')!=='true';b.setAttribute('aria-expanded',String(open));child.hidden=!open;if(open&&onOpen)onOpen();});return b;}
-function addLeaf(container,title,values,emptyText){const leaf=make('section','leaf');leaf.append(make('div','leaf-title',title));if(values.length){const chips=make('div','chips');for(const value of values)chips.append(make('span','chip',value));leaf.append(chips);}else leaf.append(make('div','empty',emptyText));container.append(leaf);}
-function render(){
-  for(const category of data.categories){
-    const card=make('section','category');card.style.setProperty('--category-color',category.color);
-    const body=make('div','children');body.hidden=true;
-    const head=toggleButton(category.name,'node-head',body);
-    head.append(make('span','category-icon',category.icon||'?'));
-    const title=make('span');title.append(make('span','node-title',category.name),make('span','meta',`${category.description} | Priority ${category.priority}`));head.append(title);
-    const group=make('span','group',category.group||'Category');head.append(group);
-    const subs=make('span','count',`${category.count} transactions - ${formatAmount(category.amount)} | ${category.subcategories.length} subcategories`);head.append(subs);
-    card.append(head);
-    for(const sub of category.subcategories){
-      const row=make('section','subcategory');const detail=make('div','leaf-groups');detail.hidden=true;
-      const subhead=toggleButton(sub.name,'sub-head',detail);
-      subhead.append(make('span','sub-title',sub.name));
-      subhead.append(make('span','count',`${sub.count} transactions - ${formatAmount(sub.amount)}`));
-      row.append(subhead);
-      addLeaf(detail,'Matching keywords',sub.keywords,'No explicit keyword rules (may be handled by a fallback or another matching layer).');
-      addLeaf(detail,'Regular-expression patterns',sub.patterns,'No regular-expression patterns defined.');
-      row.append(detail);body.append(row);
+const search = document.getElementById('search');
+const groups = [...document.querySelectorAll('.group')];
+const categories = [...document.querySelectorAll('.category')];
+
+search.addEventListener('input', () => {
+  const query = search.value.trim().toLowerCase();
+  for (const group of groups) {
+    const groupMatch = group.querySelector(':scope > summary').textContent.toLowerCase().includes(query);
+    let visibleCategory = false;
+    for (const category of group.querySelectorAll('.category')) {
+      const matches = !query || groupMatch || category.textContent.toLowerCase().includes(query);
+      category.hidden = !matches;
+      visibleCategory ||= matches;
     }
-    card.append(body);tree.append(card);
+    group.hidden = Boolean(query) && !visibleCategory;
+    if (query && visibleCategory) group.open = true;
   }
-  document.getElementById('summary').textContent=`${data.categories.length} categories ? ${data.transactionCount.toLocaleString('en-IN')} saved transactions`;
-}
-function applySearch(){
-  const query=document.getElementById('search').value.trim().toLocaleLowerCase();let visible=0;
-  for(const card of tree.children){
-    const cat=data.categories[Array.prototype.indexOf.call(tree.children,card)];
-    const catMatch=`${cat.name} ${cat.group} ${cat.description}`.toLocaleLowerCase().includes(query);
-    let any=catMatch;
-    const categoryHead=card.querySelector('.node-head'), categoryBody=card.querySelector('.children');
-    for(let i=0;i<card.querySelectorAll('.subcategory').length;i++){
-      const row=card.querySelectorAll('.subcategory')[i], sub=cat.subcategories[i];
-      const subMatch=`${sub.name} ${sub.keywords.join(' ')} ${sub.patterns.join(' ')}`.toLocaleLowerCase().includes(query);
-      row.hidden=Boolean(query)&&!catMatch&&!subMatch;
-      if(subMatch&&!catMatch){const detail=row.querySelector('.leaf-groups');detail.hidden=false;row.querySelector('.sub-head').setAttribute('aria-expanded','true');}
-      any=any||subMatch;
-    }
-    card.hidden=Boolean(query)&&!any;
-    if(!card.hidden)visible++;
-    if(query&&any){categoryBody.hidden=false;categoryHead.setAttribute('aria-expanded','true');}
-    else if(!query){for(const row of card.querySelectorAll('.subcategory'))row.hidden=false;}
-  }
-  document.getElementById('no-results').style.display=visible?'none':'block';
-}
-render();
-document.getElementById('search').addEventListener('input',applySearch);
-document.getElementById('expand-all').addEventListener('click',()=>{for(const card of tree.children){const body=card.querySelector('.children');body.hidden=false;card.querySelector('.node-head').setAttribute('aria-expanded','true');for(const row of card.querySelectorAll('.subcategory')){const detail=row.querySelector('.leaf-groups');detail.hidden=false;row.querySelector('.sub-head').setAttribute('aria-expanded','true');}}});
-document.getElementById('collapse-all').addEventListener('click',()=>{for(const card of tree.children){const body=card.querySelector('.children');body.hidden=true;card.querySelector('.node-head').setAttribute('aria-expanded','false');for(const row of card.querySelectorAll('.subcategory')){row.hidden=false;row.querySelector('.leaf-groups').hidden=true;row.querySelector('.sub-head').setAttribute('aria-expanded','false');}}});
+});
+
+document.getElementById('expand-all').addEventListener('click', () => {
+  for (const item of [...groups, ...categories]) item.open = true;
+});
+document.getElementById('collapse-all').addEventListener('click', () => {
+  for (const item of [...categories, ...groups]) item.open = false;
+});
 </script>
 </body>
 </html>

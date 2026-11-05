@@ -11,6 +11,8 @@ import sys
 from datetime import datetime, timedelta
 from collections import defaultdict
 
+from .account_filters import filter_by_account
+
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
 SRC_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'SRC')
@@ -98,7 +100,8 @@ async def dashboard_health():
 @router.get("/summary")
 async def get_dashboard_summary(
     start_date: Optional[str] = None,
-    end_date: Optional[str] = None
+    end_date: Optional[str] = None,
+    account: Optional[str] = None
 ) -> Dict[str, Any]:
     """Get comprehensive dashboard summary with all financial metrics"""
     
@@ -107,6 +110,7 @@ async def get_dashboard_summary(
     if df is None or df.empty:
         raise HTTPException(status_code=404, detail="No transaction data found. Please upload a bank statement.")
 
+    df = filter_by_account(df, account)
     if start_date:
         df = df[df['Transaction Date'] >= pd.to_datetime(start_date)]
     if end_date:
@@ -117,6 +121,7 @@ async def get_dashboard_summary(
             'totalExpenses': 0.0,
             'totalInvestments': 0.0,
             'totalPlanned': 0.0,
+            'totalTransfers': 0.0,
             'netSavings': 0.0,
             'transactionCount': 0,
             'monthsCovered': _months_covered(df, start_date, end_date),
@@ -140,9 +145,11 @@ async def get_dashboard_summary(
     expense_category_df = expense_df[expense_groups.eq('Expense')]
     investment_df = expense_df[expense_groups.eq('Investment')]
     planned_df = expense_df[expense_groups.eq('Planned')]
+    transfer_df = df[df['Category'].map(get_category_group).eq('Transfer')]
     actual_expenses = float(abs(expense_category_df['Amount'].sum()))
     total_investments = float(abs(investment_df['Amount'].sum()))
     total_planned = float(abs(planned_df['Amount'].sum()))
+    total_transfers = float(transfer_df['Amount'].abs().sum())
     
     # Date range
     date_from = df['Transaction Date'].min().strftime('%Y-%m-%d')
@@ -218,15 +225,27 @@ async def get_dashboard_summary(
     ]
     monthly_expenses = non_investment_expense_df.groupby(non_investment_expense_df['Transaction Date'].dt.to_period('M'))['Amount'].sum().abs()
     monthly_investments = investment_df.groupby(investment_df['Transaction Date'].dt.to_period('M'))['Amount'].sum().abs()
+    monthly_planned = planned_df.groupby(planned_df['Transaction Date'].dt.to_period('M'))['Amount'].sum().abs()
+    monthly_transfers = transfer_df.assign(
+        Amount=transfer_df['Amount'].abs()
+    ).groupby(transfer_df['Transaction Date'].dt.to_period('M'))['Amount'].sum()
     
     monthly_trend = []
-    all_months = sorted(set(monthly_income.index) | set(monthly_expenses.index) | set(monthly_investments.index))
+    all_months = sorted(
+        set(monthly_income.index)
+        | set(monthly_expenses.index)
+        | set(monthly_investments.index)
+        | set(monthly_planned.index)
+        | set(monthly_transfers.index)
+    )
     for month in all_months:  # ALL months, not just last 6
         monthly_trend.append({
             'month': str(month),
             'income': float(monthly_income.get(month, 0)),
             'expenses': float(monthly_expenses.get(month, 0)),
-            'investments': float(monthly_investments.get(month, 0))
+            'investments': float(monthly_investments.get(month, 0)),
+            'planned': float(monthly_planned.get(month, 0)),
+            'transfers': float(monthly_transfers.get(month, 0))
         })
     
     return {
@@ -234,6 +253,7 @@ async def get_dashboard_summary(
         'totalExpenses': actual_expenses,
         'totalInvestments': total_investments,
         'totalPlanned': total_planned,
+        'totalTransfers': total_transfers,
         'netSavings': total_income - actual_expenses,
         'transactionCount': len(df),
         'monthsCovered': months_covered,

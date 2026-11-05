@@ -157,6 +157,10 @@ $shadow-glow-danger: 0 0 30px rgba(239, 68, 68, 0.2);
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 16px;
+
+    .net-metric {
+      grid-column: 1 / -1;
+    }
   }
   
   .metric-item {
@@ -258,6 +262,25 @@ $shadow-glow-danger: 0 0 30px rgba(239, 68, 68, 0.2);
       
       &:hover {
         box-shadow: $shadow-lg, $shadow-glow-danger;
+      }
+    }
+
+    &.planned {
+      background: linear-gradient(145deg, #fffbeb 0%, #fef3c7 100%);
+      border-color: rgba($warning, 0.3);
+
+      mat-icon {
+        color: $warning;
+      }
+
+      .metric-value {
+        color: #b45309;
+        background: none;
+        -webkit-text-fill-color: currentColor;
+      }
+
+      &:hover {
+        box-shadow: $shadow-lg, 0 0 30px rgba($warning, 0.2);
       }
     }
     
@@ -977,7 +1000,7 @@ mat-paginator {
   .transaction-list-container {
     padding: 16px;
   }
-  
+
   .summary-section .section-title {
     font-size: 1.75rem;
   }

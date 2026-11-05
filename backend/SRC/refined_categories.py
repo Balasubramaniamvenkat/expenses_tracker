@@ -265,25 +265,50 @@ REFINED_CATEGORIES = {
         'priority': 4,
         'icon': '📚',
         'color': '#9C27B0',
-        'description': 'School, College, Training, Courses, Books',
+        'description': 'School, College, Tuition, Entrance Exams, Training, Courses, Books',
         'subcategories': {
-            'School Fees': {
+            'Entrance Exams & Applications': {
                 'keywords': [
-                    'school', 'school fee', 'school fees', 'tuition',
-                    'vidyalaya', 'academy', 'cbse', 'icse', 'state board',
-                    'primary school', 'high school', 'pre-school', 'nursery',
-                    'kindergarten', 'play school'
+                    'entrance exam', 'entrance test', 'exam fee', 'examination fee',
+                    'application fee', 'admission test', 'jee', 'kcet', 'comedk',
+                    'viteee', 'pessat', 'bitsat', 'neet'
                 ],
-                'patterns': [r'.*school.*fee.*', r'.*school.*', r'.*tuition.*']
+                'patterns': []
             },
             'College & University': {
                 'keywords': [
                     'college', 'university', 'semester fee', 'admission fee',
-                    'examination fee', 'convocation', 'degree', 'graduation',
-                    'post graduation', 'mba', 'engineering', 'medical college',
-                    'institute', 'iit', 'iim', 'nit', 'bits'
+                    'convocation', 'degree', 'graduation', 'post graduation',
+                    'mba', 'engineering', 'medical college', 'institute',
+                    'iit', 'iim', 'nit', 'bits', 'vit', 'pes', 'dsu',
+                    'dayananda sagar university', 'dayananda sagar',
+                    'dayanand sagar', 'dayanad sagar',
+                    'amrita vishwa vidyapeetham', 'amrita vishwa vidyapeeth',
+                    'amrita vishwa vidyape', 'amrita vishwa vidyap',
+                    'amrita vishwa vidya', 'amritha vishwa vidyapeetham',
+                    'amritha vishwa vidya', 'avv',
+                    'aoap amrita', 'aoapamrita'
                 ],
                 'patterns': [r'.*college.*fee.*', r'.*university.*', r'.*semester.*']
+            },
+            'School Fees': {
+                'keywords': [
+                    'school', 'school fee', 'school fees',
+                    'vidyalaya', 'academy', 'cbse', 'icse', 'state board',
+                    'primary school', 'high school', 'pre-school', 'nursery',
+                    'kindergarten', 'play school'
+                ],
+                'patterns': [r'.*school.*fee.*', r'.*school.*']
+            },
+            'Coaching & Tuition': {
+                'keywords': [
+                    'coaching', 'tuition', 'math', 'maths', 'mathematics',
+                    'physics', 'chemistry', 'biology', 'science', 'mathsgym',
+                    'byjus', 'byju', 'unacademy', 'vedantu', 'aakash', 'allen',
+                    'fiitjee', 'resonance', 'physics wallah', 'whitehat', 'toppr',
+                    'extra class'
+                ],
+                'patterns': [r'.*coaching.*', r'.*byjus.*', r'.*unacademy.*']
             },
             'Training & Courses': {
                 'keywords': [
@@ -293,14 +318,6 @@ REFINED_CATEGORIES = {
                     'bootcamp', 'coaching', 'classes', 'tutorial', 'lesson'
                 ],
                 'patterns': [r'.*training.*', r'.*course.*fee.*', r'.*workshop.*']
-            },
-            'Coaching & Tuition': {
-                'keywords': [
-                    'coaching', 'tuition', 'byjus', 'byju', 'unacademy',
-                    'vedantu', 'aakash', 'allen', 'fiitjee', 'resonance',
-                    'physics wallah', 'whitehat', 'toppr', 'extra class'
-                ],
-                'patterns': [r'.*coaching.*', r'.*byjus.*', r'.*unacademy.*']
             },
             'Books & Materials': {
                 'keywords': [
@@ -781,10 +798,9 @@ REFINED_CATEGORIES = {
 # INDIA TAXONOMY REVISION
 # ----------------------------------------------------------------------------
 # Every category belongs to exactly one GROUP so that day-to-day expenses are
-# never mixed with investments, insurance, education, loans, or plain money
-# movement:
+# never mixed with investment, planned, or plain money movement categories.
 #   Income       - money coming in
-#   Investment   - wealth building (stocks, MF, gold, FD, PPF/NPS ...)
+#   Investment   - wealth building and education (stocks, MF, gold, education ...)
 #   Planned      - big planned outflows (insurance, loans/EMI, taxes)
 #   Expense      - everyday living costs
 #   Transfer     - money moved to people / cash (not a spend by itself)
@@ -1737,6 +1753,30 @@ class RefinedCategorizer:
                 }
         
         return None
+
+    def _categorize_education(self, description: str) -> Optional[Dict[str, Any]]:
+        """Match education-specific terms before broad UPI merchant fallbacks."""
+        education_category = self.categories.get('Education', {})
+        for subcategory, subcategory_info in education_category.get('subcategories', {}).items():
+            for keyword in subcategory_info.get('keywords', []):
+                if _keyword_matches(keyword, description):
+                    return {
+                        'category': 'Education',
+                        'subcategory': subcategory,
+                        'confidence': 'high',
+                        'reason': f'Education keyword match: {keyword}'
+                    }
+
+            for pattern in subcategory_info.get('patterns', []):
+                if re.search(pattern, description, re.IGNORECASE):
+                    return {
+                        'category': 'Education',
+                        'subcategory': subcategory,
+                        'confidence': 'medium',
+                        'reason': 'Education pattern match'
+                    }
+
+        return None
     
     def categorize(self, description: str, amount: float) -> Dict[str, Any]:
         """
@@ -1848,6 +1888,10 @@ class RefinedCategorizer:
             elif not any(marker in vpa_lower for marker in ('payu', 'razorpay', '.rzp', 'payment', 'bank')):
                 merchant_text += ' ' + vpa_lower
 
+        education_result = self._categorize_education(merchant_text)
+        if education_result:
+            return education_result
+
         # Step 4: Check merchant database FIRST (this catches GRT, Bhima, Apollo, etc.)
         merchant_result = self._check_merchant_database(merchant_text)
         if merchant_result:
@@ -1950,6 +1994,10 @@ class RefinedCategorizer:
         payee = parts[3]
         remark = parts[4] if len(parts) > 4 and parts[4].upper() != 'UPI' else ''
         text = f'{payee} {remark}'.lower().strip()
+
+        education_result = self._categorize_education(text)
+        if education_result:
+            return education_result
         
         merchant_result = self._check_merchant_database(text)
         if merchant_result:

@@ -1,4 +1,69 @@
 <div class="transaction-list-container">
+  <div class="transaction-global-filters">
+    <div class="date-range-wrapper">
+      <mat-icon class="date-range-icon">calendar_today</mat-icon>
+      <mat-form-field appearance="outline" class="date-range-select">
+        <mat-select [value]="selectedDateRange" (selectionChange)="onDateRangeChange($event.value)"
+                    panelClass="styled-dropdown-panel">
+          <mat-select-trigger>
+            <span class="selected-value">{{ getSelectedDateRangeLabel() }}</span>
+          </mat-select-trigger>
+          <mat-option *ngFor="let option of dateRangeOptions" [value]="option.value">
+            <mat-icon class="option-icon">{{ getDateRangeIcon(option.value) }}</mat-icon>
+            {{ option.label }}
+          </mat-option>
+        </mat-select>
+      </mat-form-field>
+    </div>
+
+    <div class="account-filter-wrapper">
+      <mat-icon class="account-filter-icon">account_balance</mat-icon>
+      <mat-form-field appearance="outline" class="account-filter-select">
+        <mat-label>Accounts</mat-label>
+        <mat-select [value]="selectedAccountValues"
+                    (selectionChange)="onAccountSelectionChange($event.value)"
+                    [disabled]="accountOptionsLoading || !!accountOptionsError"
+                    multiple>
+          <mat-select-trigger>{{ getSelectedAccountsLabel() }}</mat-select-trigger>
+          <mat-option *ngFor="let account of availableAccounts; trackBy: trackByAccount" [value]="account.value">
+            {{ account.label }}
+          </mat-option>
+        </mat-select>
+      </mat-form-field>
+      <mat-spinner *ngIf="accountOptionsLoading" diameter="18" aria-label="Loading accounts"></mat-spinner>
+    </div>
+
+    <div class="custom-date-range transaction-custom-date-range" *ngIf="selectedDateRange === 'custom'">
+      <div class="custom-range-heading">
+        <mat-icon>date_range</mat-icon>
+        <span>Custom period</span>
+      </div>
+      <mat-form-field appearance="outline">
+        <mat-label>Start Date</mat-label>
+        <input matInput [matDatepicker]="transactionStartPicker" [value]="customStartDate"
+               (dateChange)="onCustomStartDateChange($event)">
+        <mat-datepicker-toggle matSuffix [for]="transactionStartPicker"></mat-datepicker-toggle>
+        <mat-datepicker #transactionStartPicker></mat-datepicker>
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>End Date</mat-label>
+        <input matInput [matDatepicker]="transactionEndPicker" [value]="customEndDate"
+               (dateChange)="onCustomEndDateChange($event)">
+        <mat-datepicker-toggle matSuffix [for]="transactionEndPicker"></mat-datepicker-toggle>
+        <mat-datepicker #transactionEndPicker></mat-datepicker>
+      </mat-form-field>
+      <button mat-flat-button color="primary" type="button" class="apply-date-range-button"
+              (click)="applyCustomDateRange()">
+        <mat-icon>check</mat-icon>
+        Apply
+      </button>
+    </div>
+
+    <span class="account-filter-error" *ngIf="accountOptionsError" role="alert">
+      {{ accountOptionsError }}
+    </span>
+  </div>
+
   <!-- Premium Summary Cards -->
   <div class="summary-section" *ngIf="metrics">
     <h2 class="section-title">Financial Overview</h2>
@@ -28,7 +93,12 @@
               <div class="metric-value">{{ formatAmount(metrics.total_expenses) }}</div>
               <div class="metric-label">Expenses</div>
             </div>
-            <div class="metric-item" [ngClass]="{'net-positive': metrics.net_savings >= 0, 'net-negative': metrics.net_savings < 0}">
+            <div class="metric-item planned">
+              <mat-icon>event_note</mat-icon>
+              <div class="metric-value">{{ formatAmount(metrics.total_planned) }}</div>
+              <div class="metric-label">Planned Outflows</div>
+            </div>
+            <div class="metric-item net-metric" [ngClass]="{'net-positive': metrics.net_savings >= 0, 'net-negative': metrics.net_savings < 0}">
               <mat-icon>{{ metrics.net_savings >= 0 ? 'savings' : 'trending_down' }}</mat-icon>
               <div class="metric-value">{{ formatAmount(metrics.net_savings) }}</div>
               <div class="metric-label">Net Savings</div>
@@ -63,7 +133,12 @@
               <div class="metric-value">{{ formatAmount(metrics.monthly_averages.expenses) }}</div>
               <div class="metric-label">Expenses</div>
             </div>
-            <div class="metric-item" [ngClass]="{'net-positive': metrics.monthly_averages.savings >= 0, 'net-negative': metrics.monthly_averages.savings < 0}">
+            <div class="metric-item planned">
+              <mat-icon>event_note</mat-icon>
+              <div class="metric-value">{{ formatAmount(metrics.monthly_averages.planned) }}</div>
+              <div class="metric-label">Planned Outflows</div>
+            </div>
+            <div class="metric-item net-metric" [ngClass]="{'net-positive': metrics.monthly_averages.savings >= 0, 'net-negative': metrics.monthly_averages.savings < 0}">
               <mat-icon>{{ metrics.monthly_averages.savings >= 0 ? 'savings' : 'trending_down' }}</mat-icon>
               <div class="metric-value">{{ formatAmount(metrics.monthly_averages.savings) }}</div>
               <div class="metric-label">Savings</div>
@@ -98,7 +173,12 @@
               <div class="metric-value">{{ formatAmount(metrics.yearly_averages.expenses) }}</div>
               <div class="metric-label">Expenses</div>
             </div>
-            <div class="metric-item" [ngClass]="{'net-positive': metrics.yearly_averages.savings >= 0, 'net-negative': metrics.yearly_averages.savings < 0}">
+            <div class="metric-item planned">
+              <mat-icon>event_note</mat-icon>
+              <div class="metric-value">{{ formatAmount(metrics.yearly_averages.planned) }}</div>
+              <div class="metric-label">Planned Outflows</div>
+            </div>
+            <div class="metric-item net-metric" [ngClass]="{'net-positive': metrics.yearly_averages.savings >= 0, 'net-negative': metrics.yearly_averages.savings < 0}">
               <mat-icon>{{ metrics.yearly_averages.savings >= 0 ? 'savings' : 'trending_down' }}</mat-icon>
               <div class="metric-value">{{ formatAmount(metrics.yearly_averages.savings) }}</div>
               <div class="metric-label">Savings</div>
@@ -127,21 +207,6 @@
             <input matInput formControlName="search_text" placeholder="Search descriptions...">
             <mat-icon matSuffix>search</mat-icon>
           </mat-form-field>
-
-          <!-- Date Range -->
-          <mat-form-field class="filter-field">
-            <mat-label>From Date</mat-label>
-            <input matInput [matDatepicker]="fromPicker" formControlName="date_from" (dateChange)="onDateFromChange($event)">
-            <mat-datepicker-toggle matSuffix [for]="fromPicker"></mat-datepicker-toggle>
-            <mat-datepicker #fromPicker></mat-datepicker>
-          </mat-form-field>
-
-          <mat-form-field class="filter-field">
-            <mat-label>To Date</mat-label>
-            <input matInput [matDatepicker]="toPicker" formControlName="date_to" (dateChange)="onDateToChange($event)">
-            <mat-datepicker-toggle matSuffix [for]="toPicker"></mat-datepicker-toggle>
-            <mat-datepicker #toPicker></mat-datepicker>
-          </mat-form-field>
         </div>
 
         <div class="filter-row">
@@ -154,17 +219,6 @@
               </mat-option>
             </mat-select>
             <mat-hint>Select categories</mat-hint>
-          </mat-form-field>
-
-          <!-- Accounts -->
-          <mat-form-field class="filter-field account-filter" appearance="outline">
-            <mat-label>Account</mat-label>
-            <mat-select formControlName="accounts" multiple>
-              <mat-option *ngFor="let account of availableAccounts; trackBy: trackByAccount" [value]="account">
-                {{ account }}
-              </mat-option>
-            </mat-select>
-            <mat-hint>Select accounts</mat-hint>
           </mat-form-field>
 
           <!-- Amount Range -->
@@ -298,7 +352,7 @@
     </mat-card-header>
     <mat-card-content>
       <div class="chart-container">
-        <canvas id="timelineChart" width="800" height="400"></canvas>
+        <canvas #timelineChart id="timelineChart" width="800" height="400"></canvas>
         <div *ngIf="!timelineData || (!timelineData?.credits?.length && !timelineData?.debits?.length)" 
              class="no-data-message">
           <mat-icon>timeline</mat-icon>

@@ -5,7 +5,7 @@ Detects and masks personally identifiable information in bank transaction data.
 Detection Strategy (Structured Approach):
 1. Phone Numbers - Regex (99% reliable)
 2. Account/Reference Numbers - Regex (95% reliable)
-3. Personal Names - Positional parsing + heuristics (85-90% reliable)
+3. Payee Names - Default-deny masking of UPI/IMPS/NEFT/RTGS payee fields
 4. UPI IDs - Pattern matching (95% reliable)
 
 This module ensures that sensitive personal data is not sent to external AI providers
@@ -13,7 +13,7 @@ while preserving enough context for meaningful financial analysis.
 """
 
 import re
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple
 from dataclasses import dataclass
 import pandas as pd
 
@@ -116,7 +116,7 @@ ACCOUNT_PATTERNS = [
 
 # UPI ID patterns (capture full UPI ID for masking)
 UPI_ID_PATTERNS = [
-    r'([A-Za-z0-9._-]+@[A-Za-z]+)',         # standard@bank format
+    r'([A-Za-z0-9._]+@[A-Za-z]+)',          # standard@bank format (no hyphen, so the UPI- prefix is excluded)
 ]
 
 # IFSC Code pattern (don't mask, not PII)
@@ -127,142 +127,41 @@ IFSC_PATTERN = r'\b[A-Z]{4}0[A-Z0-9]{6}\b'
 # Name Detection Heuristics
 # ===========================================
 
-def is_likely_personal_name(text: str) -> bool:
-    """
-    Determine if a text string is likely a personal name.
-    
-    Heuristics:
-    1. Contains only letters, spaces, and limited punctuation
-    2. Has 1-4 words (typical name structure)
-    3. Each word is 2-20 characters
-    4. Not in merchant whitelist
-    5. Not all uppercase single words that look like codes
-    """
-    if not text or len(text) < 3:
+PAYEE_PLACEHOLDER = '[PAYEE]'
+
+# Transfer descriptions whose payee fields must be masked
+TRANSFER_PREFIX_PATTERN = re.compile(r'^(UPI|IMPS|NEFT|RTGS)\b', re.IGNORECASE)
+
+# Splits on field separators but keeps them, so the line can be rebuilt
+SEGMENT_SPLIT_PATTERN = re.compile(r'([-/])')
+
+# Format labels, bank codes and connectors that are never a payee name
+NON_PAYEE_WORDS = {
+    'UPI', 'IMPS', 'NEFT', 'RTGS', 'CR', 'DR', 'REF', 'PAYMENT', 'FROM',
+    'PHONE', 'SENT', 'RECEIVED', 'TRANSFER', 'TO', 'BY', 'FOR', 'AND', 'OF', 'THE',
+    'HDFC', 'ICICI', 'ICIC', 'SBI', 'SBIN', 'AXIS', 'UTIB', 'KOTAK', 'KKBK',
+    'YESB', 'YES', 'IDFC', 'IDFCFIRST', 'IDIB', 'INDB', 'INDUSIND', 'PUNB', 'PNB',
+    'BARB', 'CNRB', 'CANARA', 'UBIN', 'UNION', 'FDRL', 'KARB', 'CSBK', 'UCBA',
+    'IOBA', 'MAHB', 'BOB',
+}
+
+
+def is_merchant_segment(segment: str) -> bool:
+    """True when a field is a known merchant, or contains one of length 6+"""
+    lowered = ' '.join(segment.lower().split())
+    if lowered in MERCHANT_WHITELIST_LOWER:
+        return True
+    return any(
+        len(merchant) >= 6 and re.search(rf'\b{re.escape(merchant)}\b', lowered)
+        for merchant in MERCHANT_WHITELIST_LOWER
+    )
+
+
+def is_payee_word(word: str) -> bool:
+    """True for purely alphabetic words that are not format labels or bank codes"""
+    if not re.fullmatch(r'[A-Za-z]+\.?', word):
         return False
-    
-    # Clean the text
-    text = text.strip()
-    
-    # Check against merchant whitelist (case-insensitive)
-    if text.lower() in MERCHANT_WHITELIST_LOWER:
-        return False
-    
-    # Check for partial merchant matches
-    text_lower = text.lower()
-    for merchant in MERCHANT_WHITELIST_LOWER:
-        if merchant in text_lower or text_lower in merchant:
-            if len(text_lower) > 4:  # Avoid short string false positives
-                return False
-    
-    # Must contain mostly letters
-    letters_only = re.sub(r'[^A-Za-z\s]', '', text)
-    if len(letters_only) < len(text) * 0.7:  # At least 70% letters
-        return False
-    
-    # Split into words
-    words = text.split()
-    
-    # Check word count (1-4 words for names)
-    if not (1 <= len(words) <= 4):
-        return False
-    
-    # Check each word
-    for word in words:
-        # Skip common titles
-        if word.upper() in ['MR', 'MRS', 'MS', 'DR', 'SHRI', 'SMT', 'KUMAR', 'MAJ']:
-            continue
-        
-        # Word length check
-        if not (2 <= len(word) <= 20):
-            return False
-        
-        # Should be mostly alphabetic
-        if not word.replace('.', '').replace('-', '').isalpha():
-            return False
-    
-    # If it looks like a code (all caps, short, with numbers nearby)
-    if text.isupper() and len(text) <= 4:
-        return False
-    
-    return True
-
-
-def extract_name_from_upi(description: str) -> Optional[str]:
-    """
-    Extract potential personal name from UPI transaction description.
-    
-    UPI Format: UPI-{PAYEE_NAME}-{UPI_ID}-{BANK_CODE}-{REF}-{DESCRIPTION}
-    Example: UPI-DHIRENDRA KUMAR  MAJ-9902770108@YBL-SBIN0017785-460665356321-PAYMENT FROM PHONE
-    """
-    if not description.upper().startswith('UPI'):
-        return None
-    
-    # Split by hyphen
-    parts = description.split('-')
-    
-    if len(parts) >= 2:
-        # Name is typically the second part (index 1)
-        potential_name = parts[1].strip()
-        
-        # Clean up extra spaces
-        potential_name = ' '.join(potential_name.split())
-        
-        if is_likely_personal_name(potential_name):
-            return potential_name
-    
-    return None
-
-
-def extract_name_from_neft(description: str) -> Optional[List[str]]:
-    """
-    Extract potential personal names from NEFT transaction description.
-    
-    NEFT Format: NEFT CR-{BANK_CODE}-{SENDER_NAME}-{DESCRIPTION}-{ACCOUNT_HOLDER}-{REF}
-    Example: NEFT CR-UTIB0005098-S RAMALAKSHMI-BALASUBRAMANIAM V-AXOIR00513626872
-    
-    Returns:
-        List of names found, or None if no names detected
-    """
-    if not re.match(r'^NEFT\s*(CR|DR)', description.upper()):
-        return None
-    
-    parts = description.split('-')
-    names_found: List[str] = []
-    
-    # Check parts 2, 3, 4 for names (skip bank code at position 1)
-    for i in range(2, min(len(parts), 5)):
-        potential_name = parts[i].strip()
-        potential_name = ' '.join(potential_name.split())
-        
-        if is_likely_personal_name(potential_name):
-            names_found.append(potential_name)
-    
-    return names_found if names_found else None
-
-
-def extract_name_from_imps(description: str) -> Optional[List[str]]:
-    """
-    Extract potential personal names from IMPS transaction description.
-    Similar format to NEFT.
-    
-    Returns:
-        List of names found, or None if no names detected
-    """
-    if not description.upper().startswith('IMPS'):
-        return None
-    
-    parts = description.split('-')
-    names_found: List[str] = []
-    
-    for i in range(1, min(len(parts), 4)):
-        potential_name = parts[i].strip()
-        potential_name = ' '.join(potential_name.split())
-        
-        if is_likely_personal_name(potential_name):
-            names_found.append(potential_name)
-    
-    return names_found if names_found else None
+    return word.upper().rstrip('.') not in NON_PAYEE_WORDS
 
 
 # ===========================================
@@ -375,49 +274,48 @@ class PIISanitizer:
         return result, pii_found
     
     def _sanitize_names(self, text: str) -> Tuple[str, List[Dict]]:
-        """Find and mask personal names based on transaction type"""
-        pii_found = []
-        result = text
-        
-        # Try UPI format
-        upi_name = extract_name_from_upi(text)
-        if upi_name:
-            placeholder = '[PAYEE]'
-            result = result.replace(upi_name, placeholder, 1)
-            pii_found.append({
-                'type': 'personal_name',
-                'original': upi_name,
-                'masked': placeholder
-            })
-            self.stats['personal_names'] += 1
-        
-        # Try NEFT format
-        neft_names = extract_name_from_neft(text)
-        if neft_names:
-            for name in neft_names:
-                placeholder = '[ACCOUNT_HOLDER]' if 'CR' in text.upper()[:20] else '[RECIPIENT]'
-                result = result.replace(name, placeholder, 1)
-                pii_found.append({
-                    'type': 'personal_name',
-                    'original': name,
-                    'masked': placeholder
-                })
-                self.stats['personal_names'] += 1
-        
-        # Try IMPS format
-        imps_names = extract_name_from_imps(text)
-        if imps_names:
-            for name in imps_names:
-                placeholder = '[PARTY]'
-                result = result.replace(name, placeholder, 1)
-                pii_found.append({
-                    'type': 'personal_name',
-                    'original': name,
-                    'masked': placeholder
-                })
-                self.stats['personal_names'] += 1
-        
-        return result, pii_found
+        """
+        Mask payee names in UPI, IMPS, NEFT and RTGS descriptions (default-deny).
+
+        Every word in a payee field is masked unless it is a known merchant,
+        a bank code or a format label. Fields containing '@' are left to the
+        UPI ID masking, and fields containing digits are left to the number masking.
+        """
+        pii_found: List[Dict] = []
+        if not TRANSFER_PREFIX_PATTERN.match(text):
+            return text, pii_found
+
+        parts = SEGMENT_SPLIT_PATTERN.split(text)
+        # Even indexes hold fields and odd indexes hold separators.
+        # Index 0 is the transaction type, so payee fields start at index 2.
+        for i in range(2, len(parts), 2):
+            segment = parts[i]
+            if '@' in segment or is_merchant_segment(segment):
+                continue
+
+            rebuilt: List[str] = []
+            names: List[str] = []
+            for word in segment.split():
+                if is_payee_word(word):
+                    if rebuilt and rebuilt[-1] == PAYEE_PLACEHOLDER:
+                        names[-1] += ' ' + word
+                    else:
+                        rebuilt.append(PAYEE_PLACEHOLDER)
+                        names.append(word)
+                else:
+                    rebuilt.append(word)
+
+            if names:
+                parts[i] = ' '.join(rebuilt)
+                for name in names:
+                    pii_found.append({
+                        'type': 'personal_name',
+                        'original': name,
+                        'masked': PAYEE_PLACEHOLDER
+                    })
+                    self.stats['personal_names'] += 1
+
+        return ''.join(parts), pii_found
     
     def _sanitize_upi_ids(self, text: str) -> Tuple[str, List[Dict]]:
         """Mask UPI IDs while preserving bank identifier"""
@@ -444,11 +342,8 @@ class PIISanitizer:
                         # Already handled by phone sanitization
                         continue
                     
-                    # Mask the username part
-                    if len(username) > 4:
-                        masked_username = username[:2] + '***' + username[-2:]
-                    else:
-                        masked_username = '***'
+                    # Keep only the first character of the username
+                    masked_username = username[:1] + '***' if username else '***'
                     
                     masked_id = f'{masked_username}@{bank}'
                     result = result.replace(upi_id, masked_id, 1)

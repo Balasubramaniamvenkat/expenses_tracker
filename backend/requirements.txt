@@ -1,7 +1,7 @@
 # Core Web Framework
 fastapi==0.104.1
 uvicorn==0.24.0
-pydantic==2.5.0
+pydantic>=2.7.4,<3
 python-multipart==0.0.6
 
 # Data Processing
@@ -18,7 +18,7 @@ langchain>=0.1.0
 langchain-core>=0.1.0
 
 # LangChain LLM Providers (install based on your API keys)
-langchain-google-genai>=0.0.6    # For Google Gemini
-# langchain-openai>=0.0.5        # For OpenAI GPT (uncomment if needed)
-# langchain-anthropic>=0.1.1     # For Claude (uncomment if needed)
+langchain-google-genai>=2.0.0    # For Google Gemini (2.x required alongside langchain-openai)
+langchain-openai>=0.0.5          # For OpenAI GPT
+langchain-anthropic>=0.1.1       # For Claude
 # langchain-groq>=0.0.1          # For Groq (uncomment if needed)

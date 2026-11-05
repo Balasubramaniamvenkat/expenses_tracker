@@ -70,7 +70,7 @@ app-simple-upload {
   opacity: 1 !important;
 }
 
-.mat-mdc-button-base {
+.mat-mdc-button-base:not(.mat-mdc-icon-button) {
   min-width: 120px !important;
   white-space: nowrap !important;
 }
@@ -401,6 +401,10 @@ html, body {
   background-color: rgba(0, 0, 0, 0.32) !important;
 }
 
+.cdk-overlay-backdrop.cdk-overlay-transparent-backdrop {
+  background-color: transparent !important;
+}
+
 /* Ensure proper z-index layering */
 .cdk-overlay-container {
   z-index: 1000 !important;
@@ -424,6 +428,191 @@ html, body {
 
 /* Enhanced filter field styling */
 .transaction-list-container {
+  .transaction-global-filters {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 28px;
+
+    .date-range-wrapper {
+      display: flex;
+      align-items: center;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 12px;
+      padding: 4px 4px 4px 12px;
+      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+      transition: all 0.3s ease;
+
+      &:hover {
+        box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        transform: translateY(-1px);
+      }
+
+      .date-range-icon {
+        color: white;
+        font-size: 20px;
+        width: 20px;
+        height: 20px;
+        margin-right: 8px;
+      }
+    }
+
+    .date-range-select {
+      width: 160px;
+
+      .mat-mdc-text-field-wrapper {
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 8px;
+        padding: 0 8px !important;
+      }
+
+      .mat-mdc-form-field-flex {
+        height: 40px;
+        align-items: center;
+      }
+
+      .mdc-notched-outline,
+      .mat-mdc-form-field-subscript-wrapper {
+        display: none;
+      }
+
+      .mat-mdc-form-field-infix {
+        min-height: unset;
+        padding: 8px 0;
+      }
+
+      .mat-mdc-select-value {
+        color: #333;
+        font-size: 14px;
+        font-weight: 600;
+      }
+
+      .mat-mdc-select-arrow {
+        color: #667eea;
+      }
+    }
+
+    .account-filter-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border: 1px solid #d0d5dd;
+      border-radius: 12px;
+      background: #fff;
+      box-shadow: 0 3px 10px rgba(28, 42, 72, 0.06);
+
+      .account-filter-icon {
+        width: 20px;
+        height: 20px;
+        color: #667085;
+        font-size: 20px;
+      }
+
+      .account-filter-select {
+        width: 170px;
+
+        .mat-mdc-text-field-wrapper {
+          padding: 0 4px !important;
+          background: transparent;
+        }
+
+        .mdc-notched-outline,
+        .mat-mdc-form-field-subscript-wrapper {
+          display: none;
+        }
+
+        .mat-mdc-form-field-flex {
+          height: 40px;
+          align-items: center;
+        }
+
+        .mat-mdc-form-field-infix {
+          min-height: unset;
+          padding: 8px 0;
+        }
+
+        .mat-mdc-select-value {
+          color: #344054;
+          font-size: 13px;
+          font-weight: 600;
+        }
+      }
+
+      mat-spinner {
+        flex: 0 0 auto;
+      }
+    }
+
+    .account-filter-error {
+      flex-basis: 100%;
+      color: #b42318;
+      font-size: 12px;
+    }
+
+    .custom-date-range {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(170px, 1fr)) auto;
+      align-items: center;
+      gap: 8px;
+      min-width: 470px;
+      padding: 8px 10px;
+      border: 1px solid #e2e7f0;
+      border-radius: 14px;
+      background: linear-gradient(135deg, #fff, #f8f9ff);
+      box-shadow: 0 4px 14px rgba(28, 42, 72, 0.08);
+
+      .custom-range-heading {
+        grid-column: 1 / -1;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 0 4px;
+        color: #475467;
+        font-size: 12px;
+        font-weight: 700;
+        white-space: nowrap;
+
+        mat-icon {
+          width: 18px;
+          height: 18px;
+          font-size: 18px;
+          color: #5b5ce2;
+        }
+      }
+
+      mat-form-field {
+        width: 100%;
+        margin: 0;
+      }
+
+      .mat-mdc-form-field-subscript-wrapper {
+        display: none;
+      }
+
+      .mat-mdc-form-field-flex {
+        align-items: center;
+      }
+
+      .mat-mdc-form-field-infix {
+        min-height: 44px;
+        padding: 10px 0;
+      }
+
+      .apply-date-range-button {
+        min-width: 84px;
+        height: 44px;
+        border-radius: 9px;
+        font-weight: 600;
+
+        mat-icon {
+          margin-right: 4px;
+        }
+      }
+    }
+  }
+
   .filters-form {
     .filter-field {
       .mat-mdc-select-panel .mat-mdc-option {
@@ -491,6 +680,47 @@ html, body {
   .category-select-panel,
   .account-select-panel {
     max-height: 250px !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .transaction-list-container .transaction-global-filters {
+    align-items: stretch;
+    flex-direction: column;
+
+    .date-range-wrapper {
+      width: 100%;
+    }
+
+    .date-range-select {
+      flex: 1;
+      width: 100%;
+    }
+
+    .account-filter-wrapper {
+      width: 100%;
+
+      .account-filter-select {
+        flex: 1;
+        width: auto;
+      }
+    }
+
+    .custom-date-range {
+      width: 100%;
+      min-width: 0;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+
+      .custom-range-heading,
+      .apply-date-range-button {
+        grid-column: 1 / -1;
+      }
+
+      mat-form-field {
+        width: auto;
+        min-width: 0;
+      }
+    }
   }
 }
 
@@ -623,8 +853,15 @@ body {
   background: white !important;
   border-radius: 8px !important;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2) !important;
-  overflow: visible !important;
+  overflow: hidden !important;
   z-index: 1100 !important;
+}
+
+.mat-datepicker-content .mat-mdc-icon-button {
+  width: 40px !important;
+  min-width: 40px !important;
+  height: 40px !important;
+  padding: 8px !important;
 }
 
 .mat-calendar {
@@ -649,7 +886,7 @@ body {
   }
   
   .mat-calendar-body-cell {
-    padding: 4px !important;
+    padding: 0 !important;
   }
   
   .mat-calendar-body-cell-content {

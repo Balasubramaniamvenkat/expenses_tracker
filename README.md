@@ -8,6 +8,7 @@ A privacy-first personal finance management application designed to help familie
 - Automatically categorize transactions (Food, Shopping, Utilities, etc.)
 - Provide visual analytics with charts and summaries
 - Offer AI-powered insights and chat capabilities
+- Render on-demand AI chat charts for spending by category or across day, week, and month periods
 - Track income vs expenses over time
 
 ## ✨ Key Features
@@ -16,11 +17,12 @@ A privacy-first personal finance management application designed to help familie
 |---------|-------------|
 | 📤 **Smart Upload** | Batch CSV/XLS/XLSX upload with transaction normalization and processed-dataset replacement |
 | 🏷️ **Smart Categorization** | Merchant database + personal name detection for accurate categorization |
-| 📊 **Drill-Down Dashboard** | Interactive charts with click-to-drill-down into subcategories |
+| 📊 **Drill-Down Dashboard** | Interactive charts with click-to-drill-down into subcategories and separate investment, planned-outflow, and transfer totals |
+| 🧾 **Account Filters** | Filter dashboard analytics and transaction lists by account; account choices show only the last four digits where available |
 | 🛒 **Indian Merchant Database** | 500+ pre-configured Indian merchants for accurate categorization |
 | 🤖 **AI Chat** | Ask questions about your finances using multiple LLM providers |
 | 🔒 **Privacy-First** | Statements are stored locally; AI context is sent to a provider only when AI features are used |
-| 🛡️ **PII Protection** | Personal names, phone numbers, and account details are automatically masked before AI processing |
+| 🛡️ **PII Protection** | Payee names, phone numbers, and account details are masked on a best-effort basis before AI processing |
 | 📱 **Responsive UI** | Material Design that works on desktop and mobile |
 
 ## 🏗️ Architecture
@@ -82,6 +84,7 @@ simple_finance_tracker/
 │   │   ├── dashboard.py       # Analytics endpoints
 │   │   ├── categories.py      # Category management
 │   │   ├── categories_hierarchy.py  # Hierarchical category API
+│   │   ├── account_filters.py # Shared analytics account filtering
 │   │   └── ai_chat.py         # AI chat integration
 │   ├── SRC/                    # Core processing modules
 │   │   ├── data_extraction.py # CSV parsing
@@ -98,6 +101,8 @@ simple_finance_tracker/
 │       │   ├── transactions/  # Transaction list
 │       │   ├── categories/    # Category management
 │       │   └── ai-insights/   # AI chat interface
+│       ├── shared/
+│       │   └── account-filter-options.ts # Shared masked account choices
 │       └── pages/
 │           └── dashboard/     # Enhanced drill-down dashboard
 ├── inputs/                     # Upload directory
@@ -110,9 +115,9 @@ simple_finance_tracker/
 |----------|--------|-------------|
 | `/api/upload/batch` | POST | Upload a batch of bank statement files (CSV, XLS, XLSX) |
 | `/api/upload/single` | POST | Upload one bank statement file |
-| `/api/transactions/` | GET | List transactions with filters |
-| `/api/transactions/metrics` | GET | Transaction metrics |
-| `/api/dashboard/summary` | GET | Dashboard analytics |
+| `/api/transactions/` | GET | List transactions with filters, including account selection |
+| `/api/transactions/metrics` | GET | Transaction metrics with account filtering |
+| `/api/dashboard/summary` | GET | Dashboard analytics with account filtering |
 | `/api/categories/analytics` | GET | Category breakdown |
 | `/api/categories/hierarchy` | GET | Hierarchical category data for drill-down |
 | `/api/ai/chat` | POST | AI chat interaction |
@@ -198,21 +203,27 @@ Before AI chat context is sent to a provider, the application attempts to detect
 
 | Data Type | Protection Method |
 |-----------|------------------|
-| **Personal Names** | Replaced with `[PAYEE]`, `[ACCOUNT_HOLDER]` placeholders |
+| **Personal Names** | Payee fields in UPI, NEFT, IMPS and RTGS descriptions replaced with `[PAYEE]`. Known merchants and bank codes are kept. Masking is default-deny, so some non-name words in those fields are also masked |
 | **Phone Numbers** | Partially masked (e.g., `XXXXX43210`) |
 | **Account Numbers** | Partially masked (e.g., `********6321`) |
-| **UPI IDs** | Username masked (e.g., `us***er@bank`) |
+| **UPI IDs** | Only the first character of the username is kept (e.g., `r***@bank`) |
 
 **How it works:**
 - Before any data is sent to AI providers (Gemini, OpenAI, etc.), the PII sanitizer automatically detects and masks sensitive information
+- AI chat uses locally calculated monthly category totals for clear time-based aggregate questions and includes the full sanitized transaction ledger only when transaction- or merchant-level details are needed
+- Merchant and business names in sanitized descriptions are retained for pharmacy, fees, transport, and other merchant-level analysis; account columns are not sent
+- When a chart is requested, its values are aggregated by the backend and returned to the chat UI as a chart payload; the chart payload contains no transaction descriptions
+- Masking is best-effort and pattern-based. Unusual bank formats or free-text remarks may not be caught
 - A green **"PII Protected"** shield badge in the AI chat indicates protection is active
 - Click the badge to see exactly what types of data are being protected
 
 **Example transformation:**
 ```
-Original:  UPI-JOHN DOE-9876543210@YBL-SBIN0017785-Payment
-Sanitized: UPI-[PAYEE]-XXXXX43210@YBL-SBIN0017785-Payment
+Original:  UPI-TEST PERSON-TESTPHONE@SAMPLEBANK-TESTBANK-TESTREF-Payment
+Sanitized: UPI-[PAYEE]-TESTPHONE@SAMPLEBANK-TESTBANK-TESTREF-Payment
 ```
+
+Run the sanitizer regression tests with `python backend/test_pii_sanitizer.py`.
 
 > **Important:** AI chat sends transaction context outside your machine after sanitization. Do not use AI features unless you are comfortable with the selected provider receiving that context.
 

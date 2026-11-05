@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, ViewChild, ElementRef, AfterViewChecked } from '@angular/core';
+import { Component, OnInit, OnDestroy, ViewChild, ViewChildren, QueryList, ElementRef, AfterViewChecked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
@@ -14,9 +14,12 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatDividerModule } from '@angular/material/divider';
 import { Subject, takeUntil } from 'rxjs';
-import { AIService, AIModel, ChatMessage, PrivacyStatus, ChatSession } from '../../services/ai.service';
+import { AIService, AIModel, AIChart, ChatMessage, PrivacyStatus, ChatSession } from '../../services/ai.service';
 import { marked } from 'marked';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
+import { Chart, ChartConfiguration, registerables } from 'chart.js';
+
+Chart.register(...registerables);
 
 @Component({
   selector: 'app-ai-chat',
@@ -109,24 +112,39 @@ import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
             
             <!-- Model Selector -->
             <div class="model-selector-wrapper" *ngIf="models.length > 0">
-              <mat-form-field appearance="outline" class="model-select">
-                <mat-label>
-                  <mat-icon>memory</mat-icon>
-                  AI Model
-                </mat-label>
-                <mat-select [(value)]="selectedModel" 
-                            (selectionChange)="onModelChange($event.value)"
-                            panelClass="model-select-panel">
-                  <mat-optgroup *ngFor="let group of modelGroups" [label]="group.provider">
-                    <mat-option *ngFor="let model of group.models" [value]="model.id">
+              <div class="model-selectors">
+                <mat-form-field appearance="outline" class="model-select provider-select">
+                  <mat-label>
+                    <mat-icon>cloud</mat-icon>
+                    Provider
+                  </mat-label>
+                  <mat-select [value]="selectedProvider"
+                              (selectionChange)="onProviderChange($event.value)"
+                              panelClass="model-select-panel">
+                    <mat-option *ngFor="let group of modelGroups" [value]="group.provider">
+                      {{ group.provider }}
+                    </mat-option>
+                  </mat-select>
+                </mat-form-field>
+
+                <mat-form-field appearance="outline" class="model-select">
+                  <mat-label>
+                    <mat-icon>memory</mat-icon>
+                    AI Model
+                  </mat-label>
+                  <mat-select [value]="selectedModel"
+                              (selectionChange)="onModelChange($event.value)"
+                              [disabled]="!selectedProvider"
+                              panelClass="model-select-panel">
+                    <mat-option *ngFor="let model of modelsForSelectedProvider" [value]="model.id">
                       <div class="model-option">
                         <span class="model-name">{{ model.name }}</span>
                         <span class="model-desc">{{ model.description }}</span>
                       </div>
                     </mat-option>
-                  </mat-optgroup>
-                </mat-select>
-              </mat-form-field>
+                  </mat-select>
+                </mat-form-field>
+              </div>
             </div>
             
             <div class="no-models-warning" *ngIf="models.length === 0 && !isLoadingModels">
@@ -248,6 +266,15 @@ import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
                   <div class="message-text markdown-content" 
                        *ngIf="message.role === 'assistant'"
                        [innerHTML]="renderMarkdown(message.content)"></div>
+                  <section class="ai-chart-card" *ngIf="message.role === 'assistant' && message.chart">
+                    <h3>{{ message.chart.title }}</h3>
+                    <div class="ai-chart-canvas-wrap">
+                      <canvas #aiChartCanvas
+                              [attr.data-chart-id]="message.chartId"
+                              [attr.aria-label]="message.chart.title"
+                              role="img"></canvas>
+                    </div>
+                  </section>
                 </div>
               </div>
             </div>
@@ -668,8 +695,17 @@ import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
       flex-shrink: 0;
     }
 
+    .model-selectors {
+      display: flex;
+      gap: 12px;
+    }
+
     .model-select {
       width: 300px;
+    }
+
+    .provider-select {
+      width: 170px;
     }
 
     .model-select ::ng-deep .mat-mdc-form-field-subscript-wrapper {
@@ -1267,6 +1303,27 @@ import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
           border-bottom: none;
         }
       }
+
+      .ai-chart-card {
+        margin-top: 18px;
+        padding: 16px;
+        border: 1px solid #e5e7eb;
+        border-radius: 14px;
+        background: #fbfcff;
+      }
+
+      .ai-chart-card h3 {
+        margin: 0 0 12px;
+        color: #374151;
+        font-size: 0.95rem;
+        font-weight: 600;
+      }
+
+      .ai-chart-canvas-wrap {
+        position: relative;
+        width: 100%;
+        height: 280px;
+      }
     }
 
     /* ===== Typing Indicator ===== */
@@ -1500,7 +1557,13 @@ import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
         padding: 16px;
       }
 
-      .model-select {
+      .model-selectors {
+        flex-direction: column;
+        width: 100%;
+      }
+
+      .model-select,
+      .provider-select {
         width: 100%;
       }
 
@@ -1521,12 +1584,17 @@ import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 })
 export class AIChatComponent implements OnInit, OnDestroy, AfterViewChecked {
   @ViewChild('messagesContainer') private messagesContainer!: ElementRef;
+  @ViewChildren('aiChartCanvas') private aiChartCanvases!: QueryList<ElementRef<HTMLCanvasElement>>;
 
   private destroy$ = new Subject<void>();
+  private chartInstances = new Map<string, Chart>();
+  private chartIdSequence = 0;
   
   models: AIModel[] = [];
   modelGroups: { provider: string; models: AIModel[] }[] = [];
   selectedModel: string | null = null;
+  selectedProvider: string | null = null;
+  modelsForSelectedProvider: AIModel[] = [];
   
   messages: ChatMessage[] = [];
   userInput = '';
@@ -1566,6 +1634,7 @@ export class AIChatComponent implements OnInit, OnDestroy, AfterViewChecked {
       .pipe(takeUntil(this.destroy$))
       .subscribe(model => {
         this.selectedModel = model;
+        this.syncProviderFromSelectedModel();
       });
 
     // Load quick questions
@@ -1629,13 +1698,109 @@ export class AIChatComponent implements OnInit, OnDestroy, AfterViewChecked {
   ngOnDestroy() {
     this.destroy$.next();
     this.destroy$.complete();
+    this.chartInstances.forEach(chart => chart.destroy());
+    this.chartInstances.clear();
   }
 
   ngAfterViewChecked() {
+    this.renderAICharts();
     if (this.shouldScrollToBottom) {
       this.scrollToBottom();
       this.shouldScrollToBottom = false;
     }
+  }
+
+  private renderAICharts(): void {
+    if (!this.aiChartCanvases) {
+      return;
+    }
+
+    const canvasRefs = this.aiChartCanvases.toArray();
+    const visibleChartIds = new Set(
+      canvasRefs
+        .map(ref => ref.nativeElement.dataset['chartId'])
+        .filter((chartId): chartId is string => Boolean(chartId))
+    );
+
+    this.chartInstances.forEach((chart, chartId) => {
+      if (!visibleChartIds.has(chartId)) {
+        chart.destroy();
+        this.chartInstances.delete(chartId);
+      }
+    });
+
+    for (const canvasRef of canvasRefs) {
+      const canvas = canvasRef.nativeElement;
+      const chartId = canvas.dataset['chartId'];
+      const message = this.messages.find(item => item.chartId === chartId && item.chart);
+      if (!chartId || !message?.chart || this.chartInstances.has(chartId)) {
+        continue;
+      }
+
+      const context = canvas.getContext('2d');
+      if (!context) {
+        continue;
+      }
+
+      this.chartInstances.set(chartId, new Chart(context, this.createChartConfiguration(message.chart)));
+    }
+  }
+
+  private createChartConfiguration(chart: AIChart): ChartConfiguration {
+    const palette = ['#667eea', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899'];
+    const datasets = chart.datasets.map((dataset, datasetIndex) => {
+      const color = palette[datasetIndex % palette.length];
+      return {
+        ...dataset,
+        backgroundColor: chart.type === 'line'
+          ? `${color}33`
+          : dataset.data.map((_, pointIndex) => palette[(datasetIndex + pointIndex) % palette.length]),
+        borderColor: chart.type === 'line' ? color : '#ffffff',
+        borderWidth: chart.type === 'doughnut' ? 2 : 1,
+        tension: chart.type === 'line' ? 0.3 : undefined,
+        fill: false
+      };
+    });
+
+    const options: ChartConfiguration['options'] = {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: chart.type === 'doughnut' || datasets.length > 1,
+          position: 'bottom'
+        },
+        tooltip: {
+          callbacks: {
+            label: context => {
+              const value = Number(context.raw);
+              return `${context.dataset.label || context.label}: ₹${Number(value).toLocaleString('en-IN')}`;
+            }
+          }
+        }
+      },
+      ...(chart.type === 'doughnut'
+        ? {}
+        : {
+            scales: {
+              y: {
+                beginAtZero: true,
+                ticks: {
+                  callback: value => `₹${Number(value).toLocaleString('en-IN')}`
+                }
+              }
+            }
+          })
+    };
+
+    return {
+      type: chart.type,
+      data: {
+        labels: chart.labels,
+        datasets
+      },
+      options
+    };
   }
 
   groupModelsByProvider() {
@@ -1652,6 +1817,37 @@ export class AIChatComponent implements OnInit, OnDestroy, AfterViewChecked {
       provider,
       models
     }));
+
+    this.syncProviderFromSelectedModel();
+  }
+
+  /**
+   * Keeps the provider dropdown and the filtered model list in step with the
+   * selected model. Falls back to the first available provider when nothing valid is selected.
+   */
+  private syncProviderFromSelectedModel() {
+    const providerOfSelected = this.models.find(m => m.id === this.selectedModel)?.provider;
+
+    if (providerOfSelected) {
+      this.selectedProvider = providerOfSelected;
+    } else if (!this.modelGroups.some(g => g.provider === this.selectedProvider)) {
+      this.selectedProvider = this.modelGroups[0]?.provider ?? null;
+    }
+
+    this.modelsForSelectedProvider =
+      this.modelGroups.find(g => g.provider === this.selectedProvider)?.models ?? [];
+  }
+
+  onProviderChange(provider: string) {
+    this.selectedProvider = provider;
+    this.modelsForSelectedProvider =
+      this.modelGroups.find(g => g.provider === provider)?.models ?? [];
+
+    // Pick the provider's first model so the chat stays usable; the user can change it next
+    const currentModelBelongsToProvider = this.modelsForSelectedProvider.some(m => m.id === this.selectedModel);
+    if (!currentModelBelongsToProvider && this.modelsForSelectedProvider.length > 0) {
+      this.onModelChange(this.modelsForSelectedProvider[0].id);
+    }
   }
 
   onModelChange(modelId: string) {
@@ -1705,7 +1901,9 @@ export class AIChatComponent implements OnInit, OnDestroy, AfterViewChecked {
             role: 'assistant',
             content: response.response,
             timestamp: new Date(),
-            model: response.model_used
+            model: response.model_used,
+            chart: response.chart ?? undefined,
+            chartId: response.chart ? `ai-chart-${Date.now()}-${++this.chartIdSequence}` : undefined
           };
           
           // Add assistant message to active chat

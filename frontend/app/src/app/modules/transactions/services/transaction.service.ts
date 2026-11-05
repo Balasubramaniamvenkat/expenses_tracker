@@ -14,12 +14,14 @@ export interface TransactionMetrics {
   total_transactions: number;
   total_income: number;
   total_expenses: number;
+  total_planned: number;
   net_savings: number;
   monthly_averages: {
     months: number;
     transactions: number;
     income: number;
     expenses: number;
+    planned: number;
     savings: number;
   };
   yearly_averages: {
@@ -27,6 +29,7 @@ export interface TransactionMetrics {
     transactions: number;
     income: number;
     expenses: number;
+    planned: number;
     savings: number;
   };
 }
@@ -299,4 +302,3 @@ export class TransactionService {
     ];
   }
 }
-

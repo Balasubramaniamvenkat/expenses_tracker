@@ -17,9 +17,16 @@ import { MatListModule } from '@angular/material/list';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
+import { MatRadioModule } from '@angular/material/radio';
 import { HttpClient } from '@angular/common/http';
 import { Subject, takeUntil, forkJoin } from 'rxjs';
 import { Chart, registerables, ChartEvent, ActiveElement } from 'chart.js';
+import {
+  ALL_ACCOUNTS_LABEL,
+  ALL_ACCOUNTS_VALUE,
+  AccountFilterOption,
+  createAccountFilterOptions
+} from '../../shared/account-filter-options';
 
 Chart.register(...registerables);
 
@@ -29,6 +36,7 @@ interface DashboardSummary {
   totalExpenses: number;
   totalInvestments: number;
   totalPlanned: number;
+  totalTransfers: number;
   netSavings: number;
   transactionCount: number;
   monthsCovered: number;
@@ -54,6 +62,8 @@ interface MonthlyTrend {
   income: number;
   expenses: number;
   investments: number;
+  planned: number;
+  transfers: number;
 }
 
 interface TrendComparison {
@@ -76,6 +86,10 @@ interface TrendData {
     current: { from: string; to: string };
     previous: { from: string; to: string };
   };
+}
+
+interface DashboardFilterOptions {
+  accounts: string[];
 }
 
 interface HierarchyCategory {
@@ -135,7 +149,8 @@ interface HierarchyResponse {
 }
 
 type DrillLevel = 'category' | 'subcategory' | 'merchant';
-type BreakdownType = 'expense' | 'income' | 'investment';
+type BreakdownType = 'income' | 'investment' | 'planned' | 'expense' | 'transfer';
+type PlotMetric = 'monthly-average' | 'yearly-average' | 'sum';
 
 interface DrillState {
   level: DrillLevel;
@@ -166,7 +181,8 @@ interface DrillState {
     MatListModule,
     MatChipsModule,
     MatTooltipModule,
-    MatButtonToggleModule
+    MatButtonToggleModule,
+    MatRadioModule
   ],
   templateUrl: './dashboard-enhanced.component.html',
   styleUrls: ['./dashboard-enhanced.component.scss']
@@ -184,18 +200,27 @@ export class DashboardEnhancedComponent implements OnInit, OnDestroy {
   // Data
   summary: DashboardSummary | null = null;
   trendData: TrendData | null = null;
-  hierarchyData: HierarchyResponse | null = null;
-  incomeHierarchyData: HierarchyResponse | null = null;
-  investmentHierarchyData: HierarchyResponse | null = null;
-  private incomeTopCategories: CategoryData[] = [];
-  private investmentTopCategories: CategoryData[] = [];
-  isInvestmentHierarchyLoading = false;
-  investmentHierarchyError: string | null = null;
-  isIncomeHierarchyLoading = false;
-  incomeHierarchyError: string | null = null;
+  private hierarchyByType: Partial<Record<BreakdownType, HierarchyResponse>> = {};
+  private hierarchyLoading = new Set<BreakdownType>();
+  private hierarchyErrors: Partial<Record<BreakdownType, string>> = {};
+  private topCategoriesByType: Partial<Record<BreakdownType, CategoryData[]>> = {};
 
   // Which side of the books the breakdown charts and category list show
   breakdownType: BreakdownType = 'expense';
+  readonly allAccountsLabel = ALL_ACCOUNTS_LABEL;
+  readonly allAccountsValue = ALL_ACCOUNTS_VALUE;
+  availableAccounts: AccountFilterOption[] = [
+    { value: this.allAccountsValue, label: this.allAccountsLabel, accountNames: [] }
+  ];
+  selectedAccounts: string[] = [this.allAccountsValue];
+  accountOptionsLoading = true;
+  accountOptionsError: string | null = null;
+  plotMetric: PlotMetric = 'sum';
+  readonly plotMetricOptions: { value: PlotMetric; label: string }[] = [
+    { value: 'monthly-average', label: 'Monthly average' },
+    { value: 'yearly-average', label: 'Yearly average' },
+    { value: 'sum', label: 'Cumulative sum' }
+  ];
   // State
   isLoading = true;
   error: string | null = null;
@@ -251,6 +276,7 @@ export class DashboardEnhancedComponent implements OnInit, OnDestroy {
   constructor(private http: HttpClient) {}
 
   ngOnInit(): void {
+    this.loadAccountOptions();
     this.loadAllData();
   }
 
@@ -262,31 +288,50 @@ export class DashboardEnhancedComponent implements OnInit, OnDestroy {
     this.averageChart?.destroy();
   }
 
+  private loadAccountOptions(): void {
+    this.accountOptionsLoading = true;
+    this.accountOptionsError = null;
+    this.http.get<DashboardFilterOptions>(`${this.API_BASE}/api/transactions/filter-options`)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (options) => {
+          this.availableAccounts = [
+            { value: this.allAccountsValue, label: this.allAccountsLabel, accountNames: [] },
+            ...createAccountFilterOptions(options.accounts)
+          ];
+          this.accountOptionsLoading = false;
+        },
+        error: (error) => {
+          console.error('Unable to load dashboard account options:', error);
+          this.accountOptionsError = 'Account options could not be loaded. Showing all accounts.';
+          this.accountOptionsLoading = false;
+        }
+      });
+  }
+
   loadAllData(): void {
     const loadId = ++this.dashboardLoadId;
     this.isLoading = true;
     this.error = null;
     this.trendData = null;
-    this.hierarchyData = null;
-    this.incomeHierarchyData = null;
-    this.investmentHierarchyData = null;
-    this.incomeTopCategories = [];
-    this.investmentTopCategories = [];
-    this.isInvestmentHierarchyLoading = false;
-    this.investmentHierarchyError = null;
-    this.isIncomeHierarchyLoading = false;
-    this.incomeHierarchyError = null;
+    this.hierarchyByType = {};
+    this.hierarchyLoading.clear();
+    this.hierarchyErrors = {};
+    this.topCategoriesByType = {};
 
     const dateParams = this.getDateParams();
     const summaryParams = new URLSearchParams(dateParams.replace(/^\?/, ''));
     summaryParams.delete('transaction_type');
     const summaryQuery = summaryParams.toString();
+    const accountQuery = this.getAccountQueryParam();
 
     forkJoin({
       summary: this.http.get<DashboardSummary>(
         `${this.API_BASE}/api/dashboard/summary${summaryQuery ? `?${summaryQuery}` : ''}`
       ),
-      trends: this.http.get<TrendData>(`${this.API_BASE}/api/categories/trend-comparison`),
+      trends: this.http.get<TrendData>(
+        `${this.API_BASE}/api/categories/trend-comparison${accountQuery ? `?${accountQuery}` : ''}`
+      ),
       hierarchy: this.http.get<HierarchyResponse>(`${this.API_BASE}/api/categories/hierarchy${dateParams}`)
     }).pipe(takeUntil(this.destroy$))
       .subscribe({
@@ -294,7 +339,8 @@ export class DashboardEnhancedComponent implements OnInit, OnDestroy {
           if (loadId !== this.dashboardLoadId) return;
           this.summary = data.summary;
           this.trendData = data.trends;
-          this.hierarchyData = data.hierarchy;
+          this.hierarchyByType.expense = data.hierarchy;
+          this.topCategoriesByType.expense = data.summary.topCategories;
           this.isLoading = false;
           
           // Reset drill state
@@ -302,8 +348,7 @@ export class DashboardEnhancedComponent implements OnInit, OnDestroy {
           this.resetAverageDrillState();
           setTimeout(() => {
             this.createCharts();
-            if (this.isIncomeView && !this.incomeHierarchyData) this.loadIncomeHierarchy();
-            if (this.isInvestmentView && !this.investmentHierarchyData) this.loadInvestmentHierarchy();
+            this.loadHierarchy(this.breakdownType);
           }, 100);
         },
         error: (err) => {
@@ -314,25 +359,26 @@ export class DashboardEnhancedComponent implements OnInit, OnDestroy {
       });
   }
 
-  loadIncomeHierarchy(): void {
-    if (this.incomeHierarchyData || this.isIncomeHierarchyLoading) return;
+  private loadHierarchy(type: BreakdownType): void {
+    if (type === 'expense' || this.hierarchyByType[type] || this.hierarchyLoading.has(type)) return;
 
     const loadId = this.dashboardLoadId;
-    this.isIncomeHierarchyLoading = true;
-    this.incomeHierarchyError = null;
+    const label = this.getBreakdownLabel(type);
+    this.hierarchyLoading.add(type);
+    delete this.hierarchyErrors[type];
     this.http.get<HierarchyResponse>(
-      `${this.API_BASE}/api/categories/hierarchy${this.getDateParams('income')}`
+      `${this.API_BASE}/api/categories/hierarchy${this.getDateParams(type)}`
     ).pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (data) => {
           if (loadId !== this.dashboardLoadId) return;
-          this.isIncomeHierarchyLoading = false;
+          this.hierarchyLoading.delete(type);
           if (!data.success) {
-            this.incomeHierarchyError = data.message || 'Could not load the income breakdown.';
+            this.hierarchyErrors[type] = data.message || `Could not load the ${label.toLowerCase()} breakdown.`;
             return;
           }
-          this.incomeHierarchyData = data;
-          this.incomeTopCategories = data.hierarchy.map(category => ({
+          this.hierarchyByType[type] = data;
+          this.topCategoriesByType[type] = data.hierarchy.map(category => ({
             name: category.name,
             amount: category.amount,
             averageMonthlyAmount: category.averageMonthlyAmount,
@@ -340,64 +386,26 @@ export class DashboardEnhancedComponent implements OnInit, OnDestroy {
             icon: category.icon,
             color: category.color
           }));
-          if (this.isIncomeView) {
+          if (this.breakdownType === type) {
             this.createCategoryChart();
             this.createAverageChart();
           }
         },
         error: (err) => {
           if (loadId !== this.dashboardLoadId) return;
-          console.error('Income hierarchy API error:', err);
-          this.isIncomeHierarchyLoading = false;
-          this.incomeHierarchyError = 'Could not load the income breakdown. Please try again.';
-        }
-      });
-  }
-
-  loadInvestmentHierarchy(): void {
-    if (this.investmentHierarchyData || this.isInvestmentHierarchyLoading) return;
-
-    const loadId = this.dashboardLoadId;
-    this.isInvestmentHierarchyLoading = true;
-    this.investmentHierarchyError = null;
-    this.http.get<HierarchyResponse>(
-      `${this.API_BASE}/api/categories/hierarchy${this.getDateParams('investment')}`
-    ).pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (data) => {
-          if (loadId !== this.dashboardLoadId) return;
-          this.isInvestmentHierarchyLoading = false;
-          if (!data.success) {
-            this.investmentHierarchyError = data.message || 'Could not load the investment breakdown.';
-            return;
-          }
-          this.investmentHierarchyData = data;
-          this.investmentTopCategories = data.hierarchy.map(category => ({
-            name: category.name,
-            amount: category.amount,
-            averageMonthlyAmount: category.averageMonthlyAmount,
-            percentage: category.percentage,
-            icon: category.icon,
-            color: category.color
-          }));
-          if (this.isInvestmentView) {
-            this.createCategoryChart();
-            this.createAverageChart();
-          }
-        },
-        error: (err) => {
-          if (loadId !== this.dashboardLoadId) return;
-          console.error('Investment hierarchy API error:', err);
-          this.isInvestmentHierarchyLoading = false;
-          this.investmentHierarchyError = 'Could not load the investment breakdown. Please try again.';
+          console.error(`${label} hierarchy API error:`, err);
+          this.hierarchyLoading.delete(type);
+          this.hierarchyErrors[type] = `Could not load the ${label.toLowerCase()} breakdown. Please try again.`;
         }
       });
   }
 
   private getDateParams(type: BreakdownType = 'expense'): string {
     const typeParam = `transaction_type=${type}`;
+    const accountQuery = this.getAccountQueryParam();
+    const accountSuffix = accountQuery ? `&${accountQuery}` : '';
     if (this.selectedDateRange === 'all') {
-      return `?${typeParam}`;
+      return `?${typeParam}${accountSuffix}`;
     }
     
     const now = new Date();
@@ -418,14 +426,51 @@ export class DashboardEnhancedComponent implements OnInit, OnDestroy {
         break;
       case 'custom':
         if (this.customStartDate && this.customEndDate) {
-          return `?start_date=${this.formatDate(this.customStartDate)}&end_date=${this.formatDate(this.customEndDate)}&${typeParam}`;
+          return `?start_date=${this.formatDate(this.customStartDate)}&end_date=${this.formatDate(this.customEndDate)}&${typeParam}${accountSuffix}`;
         }
-        return `?${typeParam}`;
+        return `?${typeParam}${accountSuffix}`;
       default:
-        return `?${typeParam}`;
+        return `?${typeParam}${accountSuffix}`;
     }
     
-    return `?start_date=${this.formatDate(startDate)}&end_date=${this.formatDate(now)}&${typeParam}`;
+    return `?start_date=${this.formatDate(startDate)}&end_date=${this.formatDate(now)}&${typeParam}${accountSuffix}`;
+  }
+
+  private getAccountQueryParam(): string {
+    const accountNames = this.availableAccounts
+      .filter(option => this.selectedAccounts.includes(option.value))
+      .flatMap(option => option.accountNames);
+    const uniqueAccountNames = [...new Set(accountNames)];
+    return uniqueAccountNames.length
+      ? `account=${encodeURIComponent(uniqueAccountNames.join(','))}`
+      : '';
+  }
+
+  onAccountSelectionChange(selection: string[]): void {
+    const hadAllAccounts = this.selectedAccounts.includes(this.allAccountsValue);
+    const selectedAllAccounts = selection.includes(this.allAccountsValue);
+
+    if (selectedAllAccounts && hadAllAccounts && selection.length > 1) {
+      this.selectedAccounts = selection.filter(account => account !== this.allAccountsValue);
+    } else if (selectedAllAccounts || selection.length === 0) {
+      this.selectedAccounts = [this.allAccountsValue];
+    } else {
+      this.selectedAccounts = selection;
+    }
+
+    this.closeDrawer();
+    this.loadAllData();
+  }
+
+  getSelectedAccountsLabel(): string {
+    if (!this.selectedAccounts.length || this.selectedAccounts.includes(this.allAccountsValue)) {
+      return this.allAccountsLabel;
+    }
+    if (this.selectedAccounts.length > 1) {
+      return `${this.selectedAccounts.length} accounts`;
+    }
+    return this.availableAccounts.find(option => option.value === this.selectedAccounts[0])?.label
+      ?? 'Account';
   }
 
   private formatDate(date: Date): string {
@@ -445,12 +490,18 @@ export class DashboardEnhancedComponent implements OnInit, OnDestroy {
   }
 
   private loadFallbackData(loadId: number): void {
-    this.http.get<DashboardSummary>(`${this.API_BASE}/api/dashboard/summary`)
+    const summaryParams = new URLSearchParams(this.getDateParams().replace(/^\?/, ''));
+    summaryParams.delete('transaction_type');
+    const summaryQuery = summaryParams.toString();
+    this.http.get<DashboardSummary>(
+      `${this.API_BASE}/api/dashboard/summary${summaryQuery ? `?${summaryQuery}` : ''}`
+    )
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (data) => {
           if (loadId !== this.dashboardLoadId) return;
           this.summary = data;
+          this.topCategoriesByType.expense = data.topCategories;
           this.isLoading = false;
           setTimeout(() => this.createCharts(), 100);
         },
@@ -479,6 +530,8 @@ export class DashboardEnhancedComponent implements OnInit, OnDestroy {
     let incomeData: number[];
     let expenseData: number[];
     let investmentData: number[];
+    let plannedData: number[];
+    let transferData: number[];
 
     if (this.summary.monthlyTrend && this.summary.monthlyTrend.length > 0) {
       months = this.summary.monthlyTrend.map(t => {
@@ -494,6 +547,8 @@ export class DashboardEnhancedComponent implements OnInit, OnDestroy {
       incomeData = this.summary.monthlyTrend.map(t => t.income);
       expenseData = this.summary.monthlyTrend.map(t => t.expenses);
       investmentData = this.summary.monthlyTrend.map(t => t.investments || 0);
+      plannedData = this.summary.monthlyTrend.map(t => t.planned || 0);
+      transferData = this.summary.monthlyTrend.map(t => t.transfers || 0);
     } else {
       const now = new Date();
       const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -501,6 +556,8 @@ export class DashboardEnhancedComponent implements OnInit, OnDestroy {
       incomeData = [this.summary.totalIncome];
       expenseData = [this.summary.totalExpenses];
       investmentData = [this.summary.totalInvestments];
+      plannedData = [this.summary.totalPlanned];
+      transferData = [this.summary.totalTransfers || 0];
     }
 
     this.trendChart = new Chart(canvas, {
@@ -517,7 +574,23 @@ export class DashboardEnhancedComponent implements OnInit, OnDestroy {
             tension: 0.4
           },
           {
-            label: 'Expenses',
+            label: 'Investment',
+            data: investmentData,
+            borderColor: '#2196F3',
+            backgroundColor: 'rgba(33, 150, 243, 0.1)',
+            fill: true,
+            tension: 0.4
+          },
+          {
+            label: 'Planned',
+            data: plannedData,
+            borderColor: '#795548',
+            backgroundColor: 'rgba(121, 85, 72, 0.1)',
+            fill: true,
+            tension: 0.4
+          },
+          {
+            label: 'Expense',
             data: expenseData,
             borderColor: '#FF9800',
             backgroundColor: 'rgba(255, 152, 0, 0.1)',
@@ -525,10 +598,10 @@ export class DashboardEnhancedComponent implements OnInit, OnDestroy {
             tension: 0.4
           },
           {
-            label: 'Investments',
-            data: investmentData,
-            borderColor: '#2196F3',
-            backgroundColor: 'rgba(33, 150, 243, 0.1)',
+            label: 'Transfer',
+            data: transferData,
+            borderColor: '#607D8B',
+            backgroundColor: 'rgba(96, 125, 139, 0.1)',
             fill: true,
             tension: 0.4
           }
@@ -562,8 +635,7 @@ export class DashboardEnhancedComponent implements OnInit, OnDestroy {
 
     const chartData = this.getChartDataForCurrentLevel();
     this.currentChartData = chartData;
-    // Calculate total for current drill level
-    this.currentDrillTotal = chartData.reduce((sum, item) => sum + item.amount, 0);
+    this.currentDrillTotal = chartData.reduce((sum, item) => sum + this.getPlotValue(item), 0);
 
     if (chartData.length === 0) {
       return;
@@ -574,7 +646,7 @@ export class DashboardEnhancedComponent implements OnInit, OnDestroy {
       data: {
         labels: chartData.map(c => c.name),
         datasets: [{
-          data: chartData.map(c => c.amount),
+          data: chartData.map(c => this.getPlotValue(c)),
           backgroundColor: chartData.map(c => c.color),
           borderWidth: 3,
           borderColor: '#fff',
@@ -595,7 +667,7 @@ export class DashboardEnhancedComponent implements OnInit, OnDestroy {
               label: (context) => {
                 const value = context.parsed;
                 const percentage = chartData[context.dataIndex]?.percentage || 0;
-                return `${context.label}: ₹${value.toLocaleString('en-IN')} (${percentage.toFixed(1)}%)`;
+                return `${context.label}: ${this.formatCurrency(value)} ${this.plotMetricUnit} (${percentage.toFixed(1)}%)`;
               }
             }
           }
@@ -623,8 +695,8 @@ export class DashboardEnhancedComponent implements OnInit, OnDestroy {
       data: {
         labels: this.averageChartData.map(item => item.name),
         datasets: [{
-          label: 'Average per month',
-          data: this.averageChartData.map(item => item.averageMonthlyAmount),
+          label: this.activePlotMetricLabel,
+          data: this.averageChartData.map(item => this.getPlotValue(item)),
           backgroundColor: this.averageChartData.map(item => item.color),
           borderRadius: 8,
           borderSkipped: false,
@@ -644,7 +716,7 @@ export class DashboardEnhancedComponent implements OnInit, OnDestroy {
           tooltip: {
             callbacks: {
               label: (context) =>
-                ` ${this.formatCurrency(Number(context.parsed.x))} / month`
+                ` ${this.formatCurrency(Number(context.parsed.x))} ${this.plotMetricUnit}`
             }
           }
         },
@@ -671,9 +743,42 @@ export class DashboardEnhancedComponent implements OnInit, OnDestroy {
     });
   }
 
+  getPlotValue(item: { amount: number; averageMonthlyAmount: number }): number {
+    switch (this.plotMetric) {
+      case 'monthly-average':
+        return item.averageMonthlyAmount;
+      case 'yearly-average':
+        return item.averageMonthlyAmount * 12;
+      case 'sum':
+        return item.amount;
+    }
+  }
+
+  get activePlotMetricLabel(): string {
+    return this.plotMetricOptions.find(option => option.value === this.plotMetric)?.label ?? 'Cumulative sum';
+  }
+
+  get plotMetricUnit(): string {
+    switch (this.plotMetric) {
+      case 'monthly-average':
+        return '/ month';
+      case 'yearly-average':
+        return '/ year';
+      case 'sum':
+        return 'total';
+    }
+  }
+
+  setPlotMetric(metric: PlotMetric): void {
+    if (metric === this.plotMetric) return;
+    this.plotMetric = metric;
+    this.createCategoryChart();
+    this.createAverageChart();
+  }
+
   private getAverageChartDataForCurrentLevel(): any[] {
     if (!this.activeHierarchyData?.hierarchy) {
-      if (this.isIncomeView || this.isInvestmentView) return [];
+      if (this.breakdownType !== 'expense') return [];
       return (this.summary?.topCategories || []).map(category => ({
         ...category,
         id: category.name.replace(/\s+/g, '_').toLowerCase()
@@ -686,6 +791,7 @@ export class DashboardEnhancedComponent implements OnInit, OnDestroy {
         return hierarchy.map(category => ({
           id: category.id,
           name: category.name,
+          amount: category.amount,
           averageMonthlyAmount: category.averageMonthlyAmount,
           color: category.color
         }));
@@ -694,6 +800,7 @@ export class DashboardEnhancedComponent implements OnInit, OnDestroy {
         return (category?.subcategories || []).map(subcategory => ({
           id: subcategory.id,
           name: subcategory.name,
+          amount: subcategory.amount,
           averageMonthlyAmount: subcategory.averageMonthlyAmount,
           color: subcategory.color
         }));
@@ -706,6 +813,7 @@ export class DashboardEnhancedComponent implements OnInit, OnDestroy {
         return (subcategory?.merchants || []).map(merchant => ({
           id: merchant.name,
           name: merchant.name,
+          amount: merchant.amount,
           averageMonthlyAmount: merchant.averageMonthlyAmount,
           color: merchant.color
         }));
@@ -787,8 +895,7 @@ export class DashboardEnhancedComponent implements OnInit, OnDestroy {
 
   private getChartDataForCurrentLevel(): any[] {
     if (!this.activeHierarchyData?.hierarchy) {
-      // Fallback to summary data (expenses only)
-      if (!this.isIncomeView && !this.isInvestmentView && this.summary?.topCategories) {
+      if (this.breakdownType === 'expense' && this.summary?.topCategories) {
         return this.summary.topCategories.filter(c => c.name !== 'Income');
       }
       return [];
@@ -802,6 +909,7 @@ export class DashboardEnhancedComponent implements OnInit, OnDestroy {
           id: cat.id,
           name: cat.name,
           amount: cat.amount,
+          averageMonthlyAmount: cat.averageMonthlyAmount,
           percentage: cat.percentage,
           color: cat.color,
           icon: cat.icon,
@@ -815,6 +923,7 @@ export class DashboardEnhancedComponent implements OnInit, OnDestroy {
           id: sub.id,
           name: sub.name,
           amount: sub.amount,
+          averageMonthlyAmount: sub.averageMonthlyAmount,
           percentage: sub.percentage,
           color: sub.color,
           transactionCount: sub.transactionCount
@@ -829,6 +938,7 @@ export class DashboardEnhancedComponent implements OnInit, OnDestroy {
           id: m.name,
           name: m.name,
           amount: m.amount,
+          averageMonthlyAmount: m.averageMonthlyAmount,
           percentage: m.percentage,
           color: m.color,
           transactionCount: m.count
@@ -979,7 +1089,7 @@ export class DashboardEnhancedComponent implements OnInit, OnDestroy {
     });
     if (this.drawerFilters.subcategory) params.set('subcategory', this.drawerFilters.subcategory);
     if (this.drawerFilters.merchant) params.set('merchant', this.drawerFilters.merchant);
-    for (const key of ['start_date', 'end_date']) {
+    for (const key of ['start_date', 'end_date', 'account']) {
       const value = dateFilters.get(key);
       if (value) params.set(key, value);
     }
@@ -1037,6 +1147,18 @@ export class DashboardEnhancedComponent implements OnInit, OnDestroy {
   }
 
   // Stats helpers
+  getMonthlyAverage(total: number): number {
+    const monthsCovered = this.summary?.monthsCovered ?? 0;
+    if (!Number.isFinite(monthsCovered) || monthsCovered <= 0) return 0;
+    return total / monthsCovered;
+  }
+
+  getYearlyAverage(total: number): number {
+    const monthsCovered = this.summary?.monthsCovered ?? 0;
+    if (!Number.isFinite(monthsCovered) || monthsCovered <= 0) return 0;
+    return total / Math.max(1, monthsCovered / 12);
+  }
+
   getMonthsCount(): number {
     if (!this.summary?.dateRange) return 0;
     const from = new Date(this.summary.dateRange.from);
@@ -1059,30 +1181,31 @@ export class DashboardEnhancedComponent implements OnInit, OnDestroy {
     return '₹' + value.toLocaleString('en-IN', { maximumFractionDigits: 0 });
   }
 
-  get isIncomeView(): boolean {
-    return this.breakdownType === 'income';
-  }
-
-  get isInvestmentView(): boolean {
-    return this.breakdownType === 'investment';
+  get isNonExpenseView(): boolean {
+    return this.breakdownType !== 'expense';
   }
 
   get isActiveHierarchyLoading(): boolean {
-    if (this.isIncomeView) return this.isIncomeHierarchyLoading;
-    if (this.isInvestmentView) return this.isInvestmentHierarchyLoading;
-    return false;
+    return this.hierarchyLoading.has(this.breakdownType);
   }
 
   get activeHierarchyError(): string | null {
-    if (this.isIncomeView) return this.incomeHierarchyError;
-    if (this.isInvestmentView) return this.investmentHierarchyError;
-    return null;
+    return this.hierarchyErrors[this.breakdownType] || null;
   }
 
   get activeBreakdownLabel(): string {
-    if (this.isIncomeView) return 'Income';
-    if (this.isInvestmentView) return 'Investments';
-    return 'Expenses';
+    return this.getBreakdownLabel(this.breakdownType);
+  }
+
+  private getBreakdownLabel(type: BreakdownType): string {
+    const labels: Record<BreakdownType, string> = {
+      income: 'Income',
+      investment: 'Investment',
+      planned: 'Planned',
+      expense: 'Expense',
+      transfer: 'Transfer'
+    };
+    return labels[type];
   }
 
   get activeLoadingMessage(): string {
@@ -1090,31 +1213,30 @@ export class DashboardEnhancedComponent implements OnInit, OnDestroy {
   }
 
   get activeNoDataMessage(): string {
-    if (this.isIncomeView) return 'No income for this period';
-    if (this.isInvestmentView) return 'No investments for this period';
-    return 'No expense categories for this period';
+    return `No ${this.activeBreakdownLabel.toLowerCase()} categories for this period`;
   }
 
   get activeUnavailableMessage(): string {
-    return `${this.activeBreakdownLabel} breakdowns are unavailable.`;
+    return `${this.activeBreakdownLabel} breakdown is unavailable.`;
   }
 
   retryActiveHierarchy(): void {
-    if (this.isIncomeView) this.loadIncomeHierarchy();
-    else if (this.isInvestmentView) this.loadInvestmentHierarchy();
+    this.loadHierarchy(this.breakdownType);
   }
 
   get activeHierarchyData(): HierarchyResponse | null {
-    if (this.isIncomeView) return this.incomeHierarchyData;
-    if (this.isInvestmentView) return this.investmentHierarchyData;
-    return this.hierarchyData;
+    return this.hierarchyByType[this.breakdownType] || null;
   }
 
   // Categories listed under "Top ..." follow the active breakdown.
   get topCategoryList(): CategoryData[] {
-    if (this.isIncomeView) return this.incomeTopCategories;
-    if (this.isInvestmentView) return this.investmentTopCategories;
-    return this.summary?.topCategories || [];
+    return this.topCategoriesByType[this.breakdownType] || [];
+  }
+
+  get activeTopCategoriesLabel(): string {
+    return this.breakdownType === 'income'
+      ? 'Income Sources'
+      : `${this.activeBreakdownLabel} Categories`;
   }
 
   setBreakdownType(type: BreakdownType): void {
@@ -1125,8 +1247,7 @@ export class DashboardEnhancedComponent implements OnInit, OnDestroy {
     this.closeDrawer();
     this.createCategoryChart();
     this.createAverageChart();
-    if (type === 'income' && !this.incomeHierarchyData) this.loadIncomeHierarchy();
-    if (type === 'investment' && !this.investmentHierarchyData) this.loadInvestmentHierarchy();
+    this.loadHierarchy(type);
   }
 
   getSelectedDateRangeLabel(): string {

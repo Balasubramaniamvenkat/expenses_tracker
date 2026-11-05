@@ -19,6 +19,8 @@ from datetime import datetime, timedelta
 from collections import defaultdict
 import re
 
+from .account_filters import filter_by_account
+
 router = APIRouter(prefix="/api/categories", tags=["categories-hierarchy"])
 
 # Add SRC to path for imports
@@ -338,7 +340,11 @@ def _months_covered(
 async def get_category_hierarchy(
     start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
     end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
-    transaction_type: Optional[str] = Query("expense", description="Transaction type: income, expense, investment, all")
+    account: Optional[str] = None,
+    transaction_type: Optional[str] = Query(
+        "expense",
+        description="Transaction group: income, investment, planned, expense, transfer, all"
+    )
 ) -> Dict[str, Any]:
     """
     Get hierarchical category data for drill-down charts
@@ -360,6 +366,8 @@ async def get_category_hierarchy(
             "summary": {}
         }
     
+    df = filter_by_account(df, account)
+
     # Filter by date range
     if start_date:
         df = df[df['Transaction Date'] >= pd.to_datetime(start_date)]
@@ -385,6 +393,14 @@ async def get_category_hierarchy(
         df = df[df['Amount'] < 0].copy()
         df['Amount'] = df['Amount'].abs()
         df = df[df['Category'].map(get_category_group).eq('Investment')]
+        df = df[df['Category'].map(get_category_group).eq('Investment')]
+    elif transaction_type == "planned":
+        df = df[df['Amount'] < 0].copy()
+        df['Amount'] = df['Amount'].abs()
+        df = df[df['Category'].map(get_category_group).eq('Planned')]
+    elif transaction_type == "transfer":
+        df = df[df['Category'].map(get_category_group).eq('Transfer')].copy()
+        df['Amount'] = df['Amount'].abs()
     
     if df.empty:
         return {
@@ -532,6 +548,7 @@ async def get_transactions_by_category(
     merchant: Optional[str] = Query(None, description="Merchant name"),
     start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
     end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+    account: Optional[str] = None,
     limit: int = Query(50, description="Maximum transactions to return"),
     offset: int = Query(0, description="Offset for pagination")
 ) -> Dict[str, Any]:
@@ -549,6 +566,8 @@ async def get_transactions_by_category(
             "transactions": [],
             "total": 0
         }
+
+    df = filter_by_account(df, account)
     
     # Filter by date range
     if start_date:
@@ -616,7 +635,8 @@ async def get_transactions_by_category(
 
 @router.get("/trend-comparison")
 async def get_trend_comparison(
-    months: int = Query(3, description="Number of months to compare")
+    months: int = Query(3, description="Number of months to compare"),
+    account: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Get trend comparison data for summary cards
@@ -629,6 +649,14 @@ async def get_trend_comparison(
         return {
             "success": False,
             "message": "No transaction data found",
+            "comparisons": {}
+        }
+
+    df = filter_by_account(df, account)
+    if df.empty:
+        return {
+            "success": False,
+            "message": "No transactions found for the selected account",
             "comparisons": {}
         }
     

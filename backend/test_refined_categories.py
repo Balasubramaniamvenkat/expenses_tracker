@@ -10,22 +10,22 @@ class RefinedCategoryTests(unittest.TestCase):
     def test_classifies_known_indian_pos_merchants(self):
         cases = [
             (
-                'POS 406584XXXXXX2203 000000000275 BANGALORE CALIFORNIA BURRITO',
+                'POS CARD-XXXX TEST-REF BANGALORE CALIFORNIA BURRITO',
                 'Food & Dining',
                 'Restaurants',
             ),
             (
-                'POS 406584XXXXXX2203 000000005116 BANGALORE LULU INTERNATIONAL SHO',
+                'POS CARD-XXXX TEST-REF BANGALORE LULU INTERNATIONAL SHO',
                 'Shopping',
                 'Local Shops & Vendors',
             ),
             (
-                'UPI-COCHIN INTERNATIONAL-CIATOCSD2@FBL-FDRL0001522-416813418400-NA',
+                'UPI-COCHIN INTERNATIONAL-TEST@SAMPLE.INVALID-TESTBANK-TESTREF-NA',
                 'Travel',
                 'Travel Booking',
             ),
             (
-                'UPI-BNG004 BENGALURU PHO-Q080639422@YBL-YESB0YBLUPI-843085443435-PAYMENT FROM PHONE',
+                'UPI-BNG004 BENGALURU PHO-TEST@SAMPLE.INVALID-TESTBANK-TESTREF-PAYMENT FROM PHONE',
                 'Food & Dining',
                 'Restaurants',
             ),
@@ -40,63 +40,63 @@ class RefinedCategoryTests(unittest.TestCase):
     def test_separates_travel_telecom_and_utilities(self):
         cases = [
             (
-                'UPI/P2M/641417589512/IRCTC ETICKETING/IRCTC/NSDL PAYMENTS BANK',
+                'UPI/P2M/TESTREF/IRCTC ETICKETING/IRCTC/TEST BANK',
                 'Travel',
                 'Rail & Train',
             ),
             (
-                'UPI-IRCTC WEB UPI-PAYTM-651536@PAYTM-YESB0PTMUPI-456133-OID100005',
+                'UPI-IRCTC WEB UPI-PAYTM-TEST@SAMPLE.INVALID-TESTBANK-TESTREF',
                 'Travel',
                 'Rail & Train',
             ),
             ('HOTEL RESERVATION PAYMENT', 'Travel', 'Hotels & Accommodation'),
             ('HOTEL SARAVANA BHAVAN', 'Food & Dining', 'Restaurants'),
             (
-                'UPI-AIRTEL MOBILE BILL-PAYBIL3066@PTYBL-YESB0PTMUPI-185593',
+                'UPI-AIRTEL MOBILE BILL-BILL@SAMPLE.INVALID-TESTBANK-TESTREF',
                 'Telecom',
                 'Mobile & Phone',
             ),
             ('AIRTEL XSTREAM BROADBAND BILL', 'Telecom', 'Internet & Broadband'),
             ('BESCOM ELECTRICITY BILL', 'Utilities', 'Electricity'),
             (
-                '50221702267754375181/PAYTMIRCTCECATERING',
+                'TESTREF/PAYTMIRCTCECATERING',
                 'Food & Dining',
                 'Food Delivery',
             ),
             (
-                'UPI-BUNDL TECHNOLOGIES P-BUNDLTECHNOLOGIESPVTLTDSWIGGYINSTAMART.RZP@AXISBANK-UTIB0000100-422418',
+                'UPI-BUNDL TECHNOLOGIES P-SWIGGYINSTAMART@SAMPLE.INVALID-TESTBANK-TESTREF',
                 'Food & Dining',
                 'Groceries',
             ),
             (
-                'UPI-BUNDL TECHNOLOGIES P-BUNDLTECHNOLOGIESPVTLTDSWIGGY.RZP@SBI-SBIN0016209-424446',
+                'UPI-BUNDL TECHNOLOGIES P-SWIGGY@SAMPLE.INVALID-TESTBANK-TESTREF',
                 'Food & Dining',
                 'Food Delivery',
             ),
             (
-                'UPI-CORNER HOUSE ICE CRE-CORNERHOUSEICECREAMS.42287574@HDFCBANK-HDFC0000001-425117',
+                'UPI-CORNER HOUSE ICE CRE-MERCHANT@SAMPLE.INVALID-TESTBANK-TESTREF',
                 'Food & Dining',
                 'Restaurants',
             ),
             (
-                'UPI-MAKE MY TRIP INDIA P-MAKEMYTRIP@HDFCBANK-HDFC0000499-413164',
+                'UPI-MAKE MY TRIP INDIA P-MERCHANT@SAMPLE.INVALID-TESTBANK-TESTREF',
                 'Travel',
                 'Travel Booking',
             ),
             ('PQFBFAPKBUD2CM/RAZPBSEINDIACOM', 'Investments', 'Stocks & Trading'),
-            ('113265520669/CCAALLENACIN', 'Education', 'Coaching & Tuition'),
+            ('TESTREF/CCAALLENACIN', 'Education', 'Coaching & Tuition'),
             (
-                'UPI-HMSHOST SERVICES IND-PAYPHI.HMSHOST@ICICI-ICIC0DC0099-508762',
+                'UPI-HMSHOST SERVICES IND-MERCHANT@SAMPLE.INVALID-TESTBANK-TESTREF',
                 'Food & Dining',
                 'Restaurants',
             ),
             (
-                'UPI-THE NEW INDIA ASSURA-THENEWINDIAASSURANCE34.RZP@MAIRTEL-AIRP0000001-416086',
+                'UPI-THE NEW INDIA ASSURA-MERCHANT@SAMPLE.INVALID-TESTBANK-TESTREF',
                 'Insurance',
                 'General Insurance',
             ),
             (
-                '51002705083843845121/PAYTMLICINDIA',
+                'TESTREF/PAYTMLICINDIA',
                 'Insurance',
                 'Life Insurance',
             ),
@@ -112,17 +112,17 @@ class RefinedCategoryTests(unittest.TestCase):
     def test_upi_classification_uses_payee_not_payment_bank(self):
         cases = [
             (
-                'UPI/P2M/645776677014/Innovative Retail Con/UPIInt/AIRTEL PAYMENTS BANK',
+                'UPI/P2M/TESTREF/Innovative Retail Con/UPIInt/TEST BANK',
                 'Food & Dining',
                 'Groceries',
             ),
             (
-                'UPI/P2M/645339091669/BBNOW/Pay/HDFC BANK LTD',
+                'UPI/P2M/TESTREF/BBNOW/Pay/TEST BANK',
                 'Food & Dining',
                 'Groceries',
             ),
             (
-                'UPI-BIGBASKET-BIGBASKET1@PAYTM-YESB0PTMUPI-501959720729-PAY',
+                'UPI-BIGBASKET-MERCHANT@SAMPLE.INVALID-TESTBANK-TESTREF-PAY',
                 'Food & Dining',
                 'Groceries',
             ),
@@ -140,7 +140,7 @@ class RefinedCategoryTests(unittest.TestCase):
 
     def test_classifies_upi_name_with_initial_as_personal_transfer(self):
         result = self.categorizer.categorize(
-            'UPI-ARIF ALI P-ARIFALI7184632@IBL-KARB0000190-983252649024-PAYMENT FROM PHONE',
+            'UPI-TEST PERSON-test.person@sample.invalid-TESTBANK-TESTREF-PAYMENT FROM PHONE',
             -1045.0,
         )
 
@@ -150,17 +150,17 @@ class RefinedCategoryTests(unittest.TestCase):
     def test_keeps_personal_credit_transfers_out_of_income(self):
         cases = [
             (
-                'IMPS-606348727989-SRAMALAKSHMI-UTIB-XXXXXX1444-INVESTMENT',
+                'IMPS-TESTREF-TEST PERSON-TESTBANK-XXXX-INVESTMENT',
                 300000.0,
                 'IMPS Transfer',
             ),
             (
-                'NEFT CR-CITI0000003-S RAMALAKSHMI-BALASUBRAMANIAM V-CITIN24401114659',
+                'NEFT CR-TESTBANK-TEST PERSON-TEST PAYEE-TESTREF',
                 500000.0,
                 'NEFT Transfer',
             ),
             (
-                'UPI-V NETHRAMBAL A KANNA-9886158576-2@YBL-IOBA0000898-419652231457-PAYMENT FROM PHONE',
+                'UPI-TEST PERSON-test.person@sample.invalid-TESTBANK-TESTREF-PAYMENT FROM PHONE',
                 100000.0,
                 'Personal Payment',
             ),
@@ -174,7 +174,7 @@ class RefinedCategoryTests(unittest.TestCase):
 
     def test_classifies_investment_payout_as_investment_returns_not_salary(self):
         result = self.categorizer.categorize(
-            'NEFT CR-YESB0000001-ZERODHA BROKING LTD-DSCNB A/C-BALASUBRAMANIAM VENKATANARAYANAN-YESB41242414643',
+            'NEFT CR-TESTBANK-ZERODHA BROKING LTD-INVESTMENT PAYOUT-TESTREF',
             212000.0,
         )
 
@@ -184,7 +184,7 @@ class RefinedCategoryTests(unittest.TestCase):
 
     def test_keeps_explicit_refunds_as_income(self):
         result = self.categorizer.categorize(
-            'UPI/P2A/601133819457/AUTOPE PA/YESB/Refund f/',
+            'UPI/P2A/TESTREF/AUTOPE PA/TESTBANK/Refund',
             1508.60,
         )
 
@@ -193,7 +193,7 @@ class RefinedCategoryTests(unittest.TestCase):
 
     def test_keeps_ambiguous_standing_instructions_out_of_daily_expenses(self):
         result = self.categorizer.categorize(
-            'SI HGAMP02D4A0338232824 BANGALO-30/09/26',
+            'SI TEST-REFERENCE BANGALORE',
             -2921.0,
         )
 
@@ -220,7 +220,7 @@ class RefinedCategoryTests(unittest.TestCase):
 
     def test_eaw_prefix_is_atm_withdrawal(self):
         result = self.categorizer.categorize(
-            'EAW-416021XXXXXX0788-DBL12076-KASAVANAHALL',
+            'EAW-CARD-XXXX-TESTBANK-TESTLOCATION',
             -2000.0,
         )
 
@@ -228,16 +228,57 @@ class RefinedCategoryTests(unittest.TestCase):
 
     def test_pes_and_dsu_are_education(self):
         for description in (
-            'UPI-PES-PES.PAYU@AXISBANK-UTIB0000000-534069325152-UPIINTENT',
-            'UPI-DSU-DSU.ESBZ@HDFCBANK-HDFC0MERUPI-510536649044-PAY',
+            'UPI-PES-MERCHANT@SAMPLE.INVALID-TESTBANK-TESTREF-UPIINTENT',
+            'UPI-DSU-MERCHANT@SAMPLE.INVALID-TESTBANK-TESTREF-PAY',
+            'UPI/P2M/TESTREF/DSU/Pay/TEST BANK',
         ):
             result = self.categorizer.categorize(description, -1000.0)
             self.assertEqual(result['category'], 'Education')
             self.assertEqual(result['subcategory'], 'College & University')
+            self.assertEqual(get_category_group(result['category']), 'Investment')
+
+    def test_amrita_university_names_and_payment_aliases_are_education(self):
+        descriptions = (
+            'UPI/P2M/TESTREF/AMRITA VISHWA VIDYAPE/UPI/TEST BANK',
+            'UPI-AMRITA VISHWA VIDYAP-TEST@SAMPLE.INVALID-TESTBANK-TESTREF-UNIVERSITY FEE',
+            'UPI-AOAP AMRITA-MERCHANT@SAMPLE.INVALID-TESTBANK-TESTREF-UPIINTENT',
+            'UPI-AMRITHA VISHWA VIDYAPEETHAM',
+            'AVV university admission payment',
+            'Dayananda Sagar University admission payment',
+        )
+
+        for description in descriptions:
+            with self.subTest(description=description):
+                result = self.categorizer.categorize(description, -1000.0)
+                self.assertEqual(result['category'], 'Education')
+                self.assertEqual(result['subcategory'], 'College & University')
+                self.assertEqual(get_category_group(result['category']), 'Investment')
+
+    def test_education_tuition_and_entrance_exam_payments_are_investments(self):
+        cases = [
+            (
+                'UPI/P2M/TESTREF/MATHSGYM/TEST PAYEE/TEST BANK',
+                'Coaching & Tuition',
+            ),
+            ('IIT JEE application fee', 'Entrance Exams & Applications'),
+            ('KCET entrance exam fee', 'Entrance Exams & Applications'),
+            ('VITEEE application fee', 'Entrance Exams & Applications'),
+            ('PESSAT entrance test fee', 'Entrance Exams & Applications'),
+            ('MATHS tuition', 'Coaching & Tuition'),
+            ('PHYSICS coaching', 'Coaching & Tuition'),
+            ('CHEMISTRY classes', 'Coaching & Tuition'),
+        ]
+
+        for description, expected_subcategory in cases:
+            with self.subTest(description=description):
+                result = self.categorizer.categorize(description, -1000.0)
+                self.assertEqual(result['category'], 'Education')
+                self.assertEqual(result['subcategory'], expected_subcategory)
+                self.assertEqual(get_category_group(result['category']), 'Investment')
 
     def test_upi_autopay_uses_real_merchant_not_taxi(self):
         result = self.categorizer.categorize(
-            'UPI-AUTOPAY-AIRTEL MOBILE BILL-PAYBIL3066@PTYBL-YESB0PTMUPI-185593682227-OID27756897916@ONE',
+            'UPI-AUTOPAY-AIRTEL MOBILE BILL-BILL@SAMPLE.INVALID-TESTBANK-TESTREF',
             -399.0,
         )
 
@@ -245,15 +286,15 @@ class RefinedCategoryTests(unittest.TestCase):
 
     def test_gateway_and_numeric_upi_payees_are_not_other(self):
         for description in (
-            'UPI-PAYU-PAYUPAYMENTS@AXL-UTIB0AXLUPI-783157324316-PAYMENT FOR 271914',
-            'UPI-4PS  4-PAYTM-82127554@PTYS-YESB0PTMUPI-987676608085-PAYMENT FROM PHONE',
+            'UPI-PAYU-MERCHANT@SAMPLE.INVALID-TESTBANK-TESTREF-PAYMENT',
+            'UPI-TEST PAYTM-TEST@SAMPLE.INVALID-TESTBANK-TESTREF-PAYMENT FROM PHONE',
         ):
             result = self.categorizer.categorize(description, -1000.0)
             self.assertNotEqual(result['category'], 'Other')
 
     def test_broker_payout_is_income_investment_returns(self):
         result = self.categorizer.categorize(
-            'NEFT CR-YESB0000001-ZERODHA BROKING LTD-DSCNB A/C-SOME HOLDER-YESBN12025070506721416',
+            'NEFT CR-TESTBANK-ZERODHA BROKING LTD-INVESTMENT PAYOUT-TESTREF',
             5057.77,
         )
 
@@ -262,15 +303,15 @@ class RefinedCategoryTests(unittest.TestCase):
         self.assertEqual(get_category_group(result['category']), 'Income')
 
     def test_broker_debit_is_still_an_investment(self):
-        result = self.categorizer.categorize('0500151856578642/ZERODHA', -100.0)
+        result = self.categorizer.categorize('TESTREF/ZERODHA', -100.0)
 
         self.assertEqual(result['category'], 'Investments')
         self.assertEqual(result['subcategory'], 'Stocks & Trading')
 
     def test_ach_credit_from_company_is_dividend(self):
         for description in (
-            'ACH C- KRITI NUTRIENTS LTD-0000000000000',
-            'ACH C- COLGATPALMOLIVINDLTD-269875',
+            'ACH C- SAMPLE COMPANY LTD-TESTREF',
+            'ACH C- TEST COMPANY LTD-TESTREF',
         ):
             result = self.categorizer.categorize(description, 2352.0)
             self.assertEqual(result['category'], 'Income')
@@ -278,8 +319,8 @@ class RefinedCategoryTests(unittest.TestCase):
 
     def test_reversal_and_merchant_credits_are_refunds(self):
         for description in (
-            'REV-UPI-00771050024065-9886158576@PTAXIS-522107679973-SENT USING PAYTM UPI',
-            'UPI-PAYTM BILL-PAYBIL3066@PTYBL-YESB0PTMUPI-513404094670-EXPRESS',
+            'REV-UPI-TESTREF-test@sample.invalid-TESTBANK-TESTREF-SENT USING PAYTM UPI',
+            'UPI-PAYTM BILL-BILL@SAMPLE.INVALID-TESTBANK-TESTREF-EXPRESS',
         ):
             result = self.categorizer.categorize(description, 501.0)
             self.assertEqual(result['category'], 'Income')
@@ -287,7 +328,7 @@ class RefinedCategoryTests(unittest.TestCase):
 
     def test_salary_credit_stays_salary(self):
         result = self.categorizer.categorize(
-            'NEFT CR-ICIC0099999-XFORMICS TECHNOLOGIES INDIA PVT LTD-SOME HOLDER-IN22536512603387',
+            'NEFT CR-TESTBANK-SAMPLE TECHNOLOGIES LTD-TEST PAYEE-TESTREF',
             172292.0,
         )
 
@@ -295,7 +336,7 @@ class RefinedCategoryTests(unittest.TestCase):
 
     def test_family_transfer_received_is_not_income(self):
         result = self.categorizer.categorize(
-            'IMPS-533923441244-SRAMALAKSHMI-UTIB-XXXXXX1444-RAJI',
+            'IMPS-TESTREF-TEST PERSON-TESTBANK-XXXX-TEST',
             65000.0,
         )
 

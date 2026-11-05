@@ -27,9 +27,33 @@
           </mat-select>
         </mat-form-field>
       </div>
+
+      <div class="account-filter-wrapper">
+        <mat-icon class="account-filter-icon">account_balance</mat-icon>
+        <mat-form-field appearance="outline" class="account-filter-select">
+          <mat-label>Accounts</mat-label>
+          <mat-select [value]="selectedAccounts"
+                      (selectionChange)="onAccountSelectionChange($event.value)"
+                      [disabled]="accountOptionsLoading || !!accountOptionsError"
+                      multiple>
+            <mat-select-trigger>{{ getSelectedAccountsLabel() }}</mat-select-trigger>
+            <mat-option *ngFor="let account of availableAccounts" [value]="account.value">
+              {{ account.label }}
+            </mat-option>
+          </mat-select>
+        </mat-form-field>
+        <mat-spinner *ngIf="accountOptionsLoading" diameter="18" aria-label="Loading accounts"></mat-spinner>
+      </div>
+      <span class="account-filter-error" *ngIf="accountOptionsError" role="alert">
+        {{ accountOptionsError }}
+      </span>
       
       <!-- Custom Date Range -->
       <div class="custom-date-range" *ngIf="selectedDateRange === 'custom'">
+        <div class="custom-range-heading">
+          <mat-icon>date_range</mat-icon>
+          <span>Custom period</span>
+        </div>
         <mat-form-field appearance="outline">
           <mat-label>Start Date</mat-label>
           <input matInput [matDatepicker]="startPicker" [(ngModel)]="customStartDate">
@@ -44,7 +68,8 @@
           <mat-datepicker #endPicker></mat-datepicker>
         </mat-form-field>
         
-        <button mat-raised-button color="primary" (click)="applyCustomDateRange()">
+        <button mat-flat-button color="primary" class="apply-date-range-button" (click)="applyCustomDateRange()">
+          <mat-icon>check</mat-icon>
           Apply
         </button>
       </div>
@@ -75,8 +100,15 @@
 
   <!-- Dashboard Content -->
   <div class="dashboard-content" *ngIf="!isLoading && !error && summary">
-    <!-- Summary Cards with Trends -->
-    <div class="summary-cards">
+    <section class="overview-section" aria-labelledby="overview-title">
+      <div class="dashboard-section-heading overview-heading">
+        <div>
+          <span class="section-kicker">Financial snapshot</span>
+          <h2 id="overview-title">Period overview</h2>
+        </div>
+        <span class="section-context">Totals for the selected date range</span>
+      </div>
+      <div class="summary-cards">
       <!-- Income Card -->
       <mat-card class="summary-card income">
         <mat-card-content>
@@ -163,7 +195,93 @@
           </div>
         </mat-card-content>
       </mat-card>
-    </div>
+      </div>
+    </section>
+
+    <section class="average-cards-section" aria-labelledby="average-cards-title">
+      <div class="average-cards-heading dashboard-section-heading">
+        <div>
+          <span class="section-kicker">Periodic averages</span>
+          <h2 id="average-cards-title">Monthly &amp; Yearly Averages</h2>
+        </div>
+        <p>For ranges under 12 months, yearly values show the selected-period total.</p>
+      </div>
+      <div class="average-cards">
+        <div class="average-period-heading"><span>Yearly average</span></div>
+        <mat-card class="summary-card average-card income">
+          <mat-card-content>
+            <div class="card-icon">
+              <mat-icon>trending_up</mat-icon>
+            </div>
+            <div class="card-info">
+              <span class="card-label">Income</span>
+              <span class="card-value">{{ formatCurrency(getYearlyAverage(summary.totalIncome)) }}</span>
+            </div>
+          </mat-card-content>
+        </mat-card>
+
+        <mat-card class="summary-card average-card expenses">
+          <mat-card-content>
+            <div class="card-icon">
+              <mat-icon>trending_down</mat-icon>
+            </div>
+            <div class="card-info">
+              <span class="card-label">Expenses</span>
+              <span class="card-value">{{ formatCurrency(getYearlyAverage(summary.totalExpenses)) }}</span>
+            </div>
+          </mat-card-content>
+        </mat-card>
+
+        <mat-card class="summary-card average-card investments">
+          <mat-card-content>
+            <div class="card-icon">
+              <mat-icon>savings</mat-icon>
+            </div>
+            <div class="card-info">
+              <span class="card-label">Investments</span>
+              <span class="card-value">{{ formatCurrency(getYearlyAverage(summary.totalInvestments)) }}</span>
+            </div>
+          </mat-card-content>
+        </mat-card>
+
+        <div class="average-period-heading monthly-period-heading"><span>Monthly average</span></div>
+        <mat-card class="summary-card average-card income">
+          <mat-card-content>
+            <div class="card-icon">
+              <mat-icon>trending_up</mat-icon>
+            </div>
+            <div class="card-info">
+              <span class="card-label">Income</span>
+              <span class="card-value">{{ formatCurrency(getMonthlyAverage(summary.totalIncome)) }}</span>
+            </div>
+          </mat-card-content>
+        </mat-card>
+
+        <mat-card class="summary-card average-card expenses">
+          <mat-card-content>
+            <div class="card-icon">
+              <mat-icon>trending_down</mat-icon>
+            </div>
+            <div class="card-info">
+              <span class="card-label">Expenses</span>
+              <span class="card-value">{{ formatCurrency(getMonthlyAverage(summary.totalExpenses)) }}</span>
+            </div>
+          </mat-card-content>
+        </mat-card>
+
+        <mat-card class="summary-card average-card investments">
+          <mat-card-content>
+            <div class="card-icon">
+              <mat-icon>savings</mat-icon>
+            </div>
+            <div class="card-info">
+              <span class="card-label">Investments</span>
+              <span class="card-value">{{ formatCurrency(getMonthlyAverage(summary.totalInvestments)) }}</span>
+            </div>
+          </mat-card-content>
+        </mat-card>
+      </div>
+    </section>
 
     <!-- Choose which transaction group to break down below -->
     <div class="breakdown-switch">
@@ -171,20 +289,38 @@
       <mat-button-toggle-group [value]="breakdownType"
                                (change)="setBreakdownType($event.value)"
                                [hideSingleSelectionIndicator]="true"
-                               aria-label="Choose whether charts show expenses, income, or investments">
-        <mat-button-toggle value="expense">
-          <mat-icon>trending_down</mat-icon>
-          Expenses
-        </mat-button-toggle>
+                               aria-label="Choose a major category group">
         <mat-button-toggle value="income">
           <mat-icon>trending_up</mat-icon>
           Income
         </mat-button-toggle>
         <mat-button-toggle value="investment">
           <mat-icon>savings</mat-icon>
-          Investments
+          Investment
+        </mat-button-toggle>
+        <mat-button-toggle value="planned">
+          <mat-icon>event_note</mat-icon>
+          Planned
+        </mat-button-toggle>
+        <mat-button-toggle value="expense">
+          <mat-icon>trending_down</mat-icon>
+          Expense
+        </mat-button-toggle>
+        <mat-button-toggle value="transfer">
+          <mat-icon>swap_horiz</mat-icon>
+          Transfer
         </mat-button-toggle>
       </mat-button-toggle-group>
+    </div>
+    <div class="plot-metric-switch">
+      <span class="plot-metric-label">Plot values</span>
+      <mat-radio-group [value]="plotMetric"
+                       (change)="setPlotMetric($event.value)"
+                       aria-label="Choose how breakdown plot values are calculated">
+        <mat-radio-button *ngFor="let option of plotMetricOptions" [value]="option.value">
+          {{ option.label }}
+        </mat-radio-button>
+      </mat-radio-group>
     </div>
 
     <!-- Charts Section -->
@@ -194,7 +330,7 @@
         <mat-card-header>
           <mat-card-title>
             <mat-icon>show_chart</mat-icon>
-            Monthly Income, Expenses & Investments
+            Monthly Trends by Major Category
           </mat-card-title>
         </mat-card-header>
         <mat-card-content>
@@ -209,7 +345,7 @@
         <mat-card-header>
           <mat-card-title>
             <mat-icon>pie_chart</mat-icon>
-            {{ activeBreakdownLabel }} Breakdown
+            {{ activeBreakdownLabel }} Breakdown ({{ activePlotMetricLabel }})
             <span class="drill-hint" *ngIf="drillState.level === 'category'">
               (Click to drill down)
             </span>
@@ -236,14 +372,14 @@
             <div class="chart-wrapper">
               <canvas id="categoryChart" [hidden]="!currentChartData.length"></canvas>
               <div class="chart-empty" *ngIf="!currentChartData.length">
-                <mat-spinner *ngIf="(isIncomeView || isInvestmentView) && isActiveHierarchyLoading" diameter="24"></mat-spinner>
-                <mat-icon *ngIf="(!isIncomeView && !isInvestmentView) || (!isActiveHierarchyLoading && !activeHierarchyError)">pie_chart_outline</mat-icon>
-                <span *ngIf="(isIncomeView || isInvestmentView) && isActiveHierarchyLoading">{{ activeLoadingMessage }}</span>
+                <mat-spinner *ngIf="isNonExpenseView && isActiveHierarchyLoading" diameter="24"></mat-spinner>
+                <mat-icon *ngIf="!isNonExpenseView || (!isActiveHierarchyLoading && !activeHierarchyError)">pie_chart_outline</mat-icon>
+                <span *ngIf="isNonExpenseView && isActiveHierarchyLoading">{{ activeLoadingMessage }}</span>
                 <span *ngIf="activeHierarchyError">{{ activeHierarchyError }}</span>
                 <button mat-button *ngIf="activeHierarchyError" (click)="retryActiveHierarchy()">
                   Retry
                 </button>
-                <span *ngIf="(!isIncomeView && !isInvestmentView) || (!isActiveHierarchyLoading && !activeHierarchyError)">
+                <span *ngIf="!isNonExpenseView || (!isActiveHierarchyLoading && !activeHierarchyError)">
                   {{ activeNoDataMessage }}
                 </span>
               </div>
@@ -251,7 +387,7 @@
               <!-- Center text for doughnut -->
               <div class="chart-center-text" *ngIf="activeHierarchyData?.summary">
                 <span class="center-amount">{{ formatCurrency(currentDrillTotal) }}</span>
-                <span class="center-label">Total {{ drillState.level === 'category' ? activeBreakdownLabel : drillState.categoryName }}</span>
+                <span class="center-label">{{ activePlotMetricLabel }} {{ drillState.level === 'category' ? activeBreakdownLabel : drillState.categoryName }}</span>
               </div>
             </div>
             
@@ -263,7 +399,7 @@
                 <div class="legend-color" [style.background-color]="item.color"></div>
                 <div class="legend-info">
                   <span class="legend-name">{{ item.name }}</span>
-                  <span class="legend-amount">{{ formatCurrency(item.amount) }}</span>
+                  <span class="legend-amount">{{ formatCurrency(getPlotValue(item)) }} {{ plotMetricUnit }}</span>
                 </div>
                 <div class="legend-percentage">{{ item.percentage | number:'1.1-1' }}%</div>
                 <mat-icon class="legend-arrow" *ngIf="drillState.level !== 'merchant'">chevron_right</mat-icon>
@@ -279,7 +415,7 @@
       <mat-card-header>
         <mat-card-title>
           <mat-icon>monitoring</mat-icon>
-          Average Monthly {{ activeBreakdownLabel }}
+          {{ activePlotMetricLabel }} {{ activeBreakdownLabel }}
           <span class="drill-hint" *ngIf="averageDrillState.level === 'category'">
             (Click a bar to drill down)
           </span>
@@ -300,21 +436,31 @@
       </mat-card-header>
       <mat-card-content>
         <p class="average-chart-caption">
-          Monthly average in rupees, based on
-          {{ (activeHierarchyData?.summary?.monthsCovered || summary.monthsCovered) | number:'1.1-1' }}
-          calendar month{{ (activeHierarchyData?.summary?.monthsCovered || summary.monthsCovered) === 1 ? '' : 's' }}.
+          <ng-container [ngSwitch]="plotMetric">
+            <span *ngSwitchCase="'monthly-average'">
+              Monthly average in rupees, based on
+              {{ (activeHierarchyData?.summary?.monthsCovered || summary.monthsCovered) | number:'1.1-1' }}
+              calendar month{{ (activeHierarchyData?.summary?.monthsCovered || summary.monthsCovered) === 1 ? '' : 's' }}.
+            </span>
+            <span *ngSwitchCase="'yearly-average'">
+              Yearly average in rupees, annualized from the monthly average.
+            </span>
+            <span *ngSwitchDefault>
+              Cumulative sum in rupees across the selected period.
+            </span>
+          </ng-container>
           Select a bar to explore subcategories and merchants.
         </p>
         <div class="average-chart-wrapper"
              [style.height.px]="Math.max(260, averageChartData.length * 42)">
           <canvas id="averageChart" [hidden]="!averageChartData.length"></canvas>
           <div class="chart-empty" *ngIf="!averageChartData.length">
-            <mat-spinner *ngIf="(isIncomeView || isInvestmentView) && isActiveHierarchyLoading" diameter="24"></mat-spinner>
-            <mat-icon *ngIf="(!isIncomeView && !isInvestmentView) || (!isActiveHierarchyLoading && !activeHierarchyError)">monitoring</mat-icon>
-            <span *ngIf="(isIncomeView || isInvestmentView) && isActiveHierarchyLoading">{{ activeLoadingMessage }}</span>
+            <mat-spinner *ngIf="isNonExpenseView && isActiveHierarchyLoading" diameter="24"></mat-spinner>
+            <mat-icon *ngIf="!isNonExpenseView || (!isActiveHierarchyLoading && !activeHierarchyError)">monitoring</mat-icon>
+            <span *ngIf="isNonExpenseView && isActiveHierarchyLoading">{{ activeLoadingMessage }}</span>
             <span *ngIf="activeHierarchyError">{{ activeUnavailableMessage }}</span>
-            <span *ngIf="(!isIncomeView && !isInvestmentView) || (!isActiveHierarchyLoading && !activeHierarchyError)">
-              No monthly averages for this period
+            <span *ngIf="!isNonExpenseView || (!isActiveHierarchyLoading && !activeHierarchyError)">
+              No {{ activePlotMetricLabel | lowercase }} values for this period
             </span>
           </div>
         </div>
@@ -326,7 +472,7 @@
       <mat-card-header>
         <mat-card-title>
           <mat-icon>category</mat-icon>
-          Top {{ isIncomeView ? 'Income Sources' : (isInvestmentView ? 'Investments' : 'Spending Categories') }}
+          Top {{ activeTopCategoriesLabel }}
         </mat-card-title>
       </mat-card-header>
       <mat-card-content>
@@ -356,10 +502,10 @@
         <ng-template #noTopCategories>
           <div class="empty-category-list">
             <mat-icon>search_off</mat-icon>
-            <span *ngIf="(isIncomeView || isInvestmentView) && isActiveHierarchyLoading">{{ activeLoadingMessage }}</span>
+            <span *ngIf="isNonExpenseView && isActiveHierarchyLoading">{{ activeLoadingMessage }}</span>
             <span *ngIf="activeHierarchyError">{{ activeUnavailableMessage }}</span>
-            <span *ngIf="(!isIncomeView && !isInvestmentView) || (!isActiveHierarchyLoading && !activeHierarchyError)">
-              {{ isIncomeView ? 'No income to show for this period.' : (isInvestmentView ? 'No investments to show for this period.' : 'No spending categories to show for this period.') }}
+            <span *ngIf="!isNonExpenseView || (!isActiveHierarchyLoading && !activeHierarchyError)">
+              {{ activeNoDataMessage }}.
             </span>
           </div>
         </ng-template>
